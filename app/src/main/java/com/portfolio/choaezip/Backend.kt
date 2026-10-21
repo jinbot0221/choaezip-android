@@ -24,7 +24,7 @@ fun Doc.bool(key: String) = this[key] == true
 fun Doc.strings(key: String) = (this[key] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
 class ChoaezipApplication : Application() {
-    override fun onCreate() { super.onCreate(); Backend.init(this) }
+    override fun onCreate() { super.onCreate(); PushChannels.create(this); Backend.init(this) }
 }
 object Backend {
     lateinit var context: Application

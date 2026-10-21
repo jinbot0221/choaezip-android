@@ -73,6 +73,13 @@ test('direct Firestore access is denied even for signed-in users',async()=>{
 test('post is public, like is idempotent, comments require ownership to delete',async()=>{
  post=(await a.call('savePost',{title:'공연 이야기',body:'모두 즐거웠어요',category:'공연 후기',artistId:'test_artist',requestKey:'post-'+stamp,media:[]})).id;
  assert.equal((await guest.call('post',{id:post})).title,'공연 이야기');
+ const persisted=await db.doc(`posts/${post}`).get();
+ assert.equal(persisted.data().ownerId,aid);
+ assert.equal(persisted.data().body,'모두 즐거웠어요');
+ const returning=client('returning-'+stamp);
+ await signInWithEmailAndPassword(returning.auth,a.auth.currentUser.email,'testpass123!');
+ assert.equal((await returning.call('post',{id:post})).title,'공연 이야기');
+ assert.ok((await returning.call('posts',{})).items.some(item=>item.id===post));
  await b.call('like',{id:post,enabled:true});await b.call('like',{id:post,enabled:true});
  assert.equal((await a.call('post',{id:post})).likeCount,1);
  comment=(await b.call('comment',{id:post,body:'저도요!',requestKey:'comment-'+stamp})).id;

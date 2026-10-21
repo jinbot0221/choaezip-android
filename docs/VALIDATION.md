@@ -39,3 +39,11 @@ Firebase 서비스 계정 키·릴리스 서명 키·실제 `google-services.jso
 - 이메일 계정 생성 후 프로필 저장만 실패하면 가입 완료 화면으로 전환하고 닉네임/동의를 유지하여 재시도. 비밀번호는 저장하지 않음.
 - 이 환경에서 실제 Firebase Auth 설정 조회는 네트워크 연결 실패(curl 56)로 검증하지 못함. 실제 Google 계정 로그인 및 실제 이메일 계정 생성은 미검증. 콘솔 공급자 활성화, APK 서명 SHA 등록, 실제 프로젝트의 Functions/Firestore/Storage 배포 여부는 별도 확인 필요.
 - 기존 실행 스크린샷은 이번 수정 이전 버전이며 새 실행 화면 검증으로 간주하지 않음.
+
+## 2026-10-21 FCM 콘솔 테스트 및 라운지 보관 확인
+
+- 실제 Firebase 설정으로 `assembleDebug testDebugUnitTest lintDebug` 성공. Android 테스트 9개 통과. 알림 notification payload가 로그인/Functions 없이 전경에서 표시되고, 대상 없는 비공개 data 메시지는 표시되지 않는 것을 Robolectric에서 검증.
+- 백그라운드 FCM SDK 표시용 기본 알림 채널/아이콘 지정, 앱 시작 시 채널 생성. 마이 → 알림 수신 확인에서 Android 13+ 권한 요청과 FCM 토큰 조회/복사 제공.
+- `npm test` 성공: demo Firebase Auth/Firestore/Functions/Storage Emulator를 사용한 통합 테스트 및 도메인 테스트 전체 19개 통과. 라운지 생성 결과의 Firestore `posts/{id}` 문서와 작성자/본문을 확인하고 새 클라이언트 재로그인 후 글/목록 재조회까지 검증.
+- 라운지의 기존 서버 영구 저장 로직 유지. 일반 게시글 자동 만료 없음. 사용자 삭제/탈퇴 및 운영 조치는 기존 정책대로 처리.
+- 실제 FCM 네트워크 전송/콘솔 발송 및 실기기 전경·백그라운드 수신은 이번 환경에서 미검증. 실제 프로젝트 서버 배포 상태도 미확인. 콘솔 테스트 및 실제 데이터 저장 준비 방법은 README에 기재.

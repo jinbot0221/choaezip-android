@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); incoming = intent }
 }
-private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "records" to "덕질 보관함", "lounge" to "팬라운지", "my" to "마이", "artists" to "최애 선택", "schedule" to "일정 상세", "record" to "기록 상세", "editRecord" to "기록 남기기", "post" to "이야기", "editPost" to "이야기 쓰기", "login" to "로그인", "signup" to "이메일 회원가입", "completeSignup" to "가입 완료", "reset" to "비밀번호 찾기", "newPassword" to "비밀번호 변경", "notifications" to "알림함", "preferences" to "알림 설정", "profile" to "프로필 수정", "blocks" to "차단 사용자", "report" to "신고와 차단", "deleteAccount" to "계정 탈퇴")
+private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "records" to "덕질 보관함", "lounge" to "팬라운지", "my" to "마이", "artists" to "최애 선택", "schedule" to "일정 상세", "record" to "기록 상세", "editRecord" to "기록 남기기", "post" to "이야기", "editPost" to "이야기 쓰기", "login" to "로그인", "signup" to "이메일 회원가입", "completeSignup" to "가입 완료", "reset" to "비밀번호 찾기", "newPassword" to "비밀번호 변경", "notifications" to "알림함", "pushTest" to "알림 수신 확인", "preferences" to "알림 설정", "profile" to "프로필 수정", "blocks" to "차단 사용자", "report" to "신고와 차단", "deleteAccount" to "계정 탈퇴")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun ChoaezipApp(vm: AppViewModel) {
     val root = vm.route.screen in listOf("home","calendar","records","lounge","my")
@@ -116,6 +116,7 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
                         "my" -> MyScreen(vm)
                         "login", "signup", "completeSignup", "reset", "newPassword" -> AuthScreen(vm)
                         "notifications" -> Notifications(vm)
+                        "pushTest" -> PushTestScreen(vm)
                         "preferences" -> Preferences(vm)
                         "profile" -> Profile(vm)
                         "blocks" -> Blocks(vm)
@@ -300,6 +301,7 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
     Primary("저장하기",!vm.busy&&artist.isNotBlank()){vm.saveContent(record,title,body,date,category,artist,photos,existing,requestKey,initial.num("version"))}
 }
 @Composable fun MyScreen(vm: AppViewModel) {
+    MenuRow("알림 수신 확인"){vm.navigate("pushTest")}
     if(!vm.signedIn){Guest(vm,"좋아하는 마음의 보관함");MenuRow("최애 선택"){vm.navigate("artists")};return}
     Panel {Text("✦",fontSize=32.sp,color=Purple);Heading(vm.nickname);Caption(vm.me?.str("bio")?:"");Text(vm.favoriteName,color=Purple)}
     if(vm.me?.bool("restricted")==true) Panel(color=MaterialTheme.colorScheme.errorContainer){Text("일부 기능 이용이 제한되어 있어요.");Caption(vm.me?.str("restrictionReason")?:"문의는 운영자에게 연락해 주세요.")}
