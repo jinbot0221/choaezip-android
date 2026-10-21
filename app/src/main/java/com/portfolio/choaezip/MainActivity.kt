@@ -47,6 +47,9 @@ import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -156,8 +159,8 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
     Row(Modifier.fillMaxWidth().clickable(onClick=action).padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(text,fontSize=16.sp); if(detail.isNotEmpty()) Caption(detail) }; Icon(Icons.Outlined.ChevronRight,null,tint=Muted) }
     HorizontalDivider(color=Lavender)
 }
-@Composable fun Field(value: String, label: String, onChange:(String)->Unit, multiline:Boolean=false, password:Boolean=false) {
-    OutlinedTextField(value,onChange,Modifier.fillMaxWidth().then(if(multiline) Modifier.heightIn(min=160.dp) else Modifier),label={Text(label)},shape=RoundedCornerShape(14.dp),singleLine=!multiline,visualTransformation=if(password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,keyboardOptions=KeyboardOptions(keyboardType=if(password) KeyboardType.Password else KeyboardType.Text))
+@Composable fun Field(value: String, label: String, onChange:(String)->Unit, multiline:Boolean=false, password:Boolean=false, error:String?=null) {
+    OutlinedTextField(value,onChange,isError=error!=null,supportingText=error?.let { message -> { Text(message) } },modifier=Modifier.fillMaxWidth().then(if(multiline) Modifier.heightIn(min=160.dp) else Modifier),label={Text(label)},shape=RoundedCornerShape(14.dp),singleLine=!multiline,visualTransformation=if(password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,keyboardOptions=KeyboardOptions(keyboardType=if(password) KeyboardType.Password else KeyboardType.Text))
 }
 @Composable fun Chips(options: List<String>, value: String, select:(String)->Unit) {
     options.chunked(3).forEach { row -> Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) { row.forEach { label -> FilterChip(selected=value==label,onClick={select(label)},label={Text(label)}) } } }
@@ -322,22 +325,53 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
     val screen=vm.route.screen;val context=LocalContext.current
     var email by rememberSaveable{mutableStateOf("")}; var nickname by rememberSaveable{mutableStateOf(vm.pendingNickname)}
     var password by remember{mutableStateOf("")};var confirm by remember{mutableStateOf("")};var agree by rememberSaveable{mutableStateOf(vm.pendingAgreement)}
+    val scope = rememberCoroutineScope()
+    var selectingGoogle by remember { mutableStateOf(false) }
+    var submitted by remember { mutableStateOf(false) }
+    var googleNotice by remember { mutableStateOf<String?>(null) }
+    val errors = if(!submitted) emptyMap() else when(screen) {
+        "signup" -> Validation.signupErrors(email,password,confirm,nickname,agree)
+        "completeSignup" -> Validation.profileErrors(nickname,agree)
+        else -> emptyMap()
+    }
+    val inputsEnabled = !vm.busy && !selectingGoogle
     Text("✦",fontSize=48.sp,color=Purple);Heading(if(screen=="login")"좋아하는 마음이\n모이는 곳, 최애.zip" else titles[screen]?:"")
     if(screen=="login"){
-        OutlinedButton(onClick={vm.work{val credential=googleCredential(context);Backend.google(credential.idToken);vm.afterAuth()}},enabled=!vm.busy,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp)){Text("Google로 계속하기")}
+        OutlinedButton(onClick={
+            selectingGoogle = true; googleNotice = "Google 계정을 선택해 주세요."; vm.error = null
+            scope.launch {
+                try {
+                    // Obtain the credential before opening the app's busy Dialog.
+                    val credential = googleCredential(context)
+                    googleNotice = null
+                    vm.work { vm.googleLogin(credential.idToken) }
+                } catch(e: kotlinx.coroutines.CancellationException) {
+                    googleNotice = "Google 로그인을 취소했어요. 다시 시도할 수 있어요."
+                } catch(e: Exception) {
+                    googleNotice = authErrorMessage(e)
+                } finally { selectingGoogle = false }
+            }
+        },enabled=inputsEnabled,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp)){Text("Google로 계속하기")}
+        googleNotice?.let { Text(it,color=MaterialTheme.colorScheme.primary) }
         Caption("또는 이메일로 로그인")
     }
-    if(screen in listOf("signup","completeSignup")) Field(nickname,"닉네임 (2~20자)",{nickname=it})
-    if(screen in listOf("login","signup","reset")) Field(email,"이메일",{email=it})
-    if(screen in listOf("login","signup","newPassword")) Field(password,"비밀번호${if(screen!="login")" (8~64자)" else ""}",{password=it},password=true)
-    if(screen in listOf("signup","newPassword")) Field(confirm,"비밀번호 확인",{confirm=it},password=true)
+    if(screen in listOf("signup","completeSignup")) Field(nickname,"닉네임 (2~20자)",{nickname=it},error=errors["nickname"])
+    if(screen in listOf("login","signup","reset")) Field(email,"이메일",{email=it},error=errors["email"])
+    if(screen in listOf("login","signup","newPassword")) Field(password,"비밀번호${if(screen!="login")" (8~64자)" else ""}",{password=it},password=true,error=errors["password"])
+    if(screen in listOf("signup","newPassword")) Field(confirm,"비밀번호 확인",{confirm=it},password=true,error=errors["confirm"])
     if(screen in listOf("signup","completeSignup")) {
         Panel {Text("서비스 이용약관 · 개인정보 처리방침",fontWeight=FontWeight.Bold);Caption("기록은 비공개, 라운지의 닉네임과 글은 공개됩니다. 서비스 제공을 위해 계정·프로필·콘텐츠를 Firebase에 저장합니다. 탈퇴 시 데이터 삭제를 요청할 수 있습니다.");Caption("개발용 약관 요약입니다. 실제 서비스 출시 전 운영자의 약관 및 개인정보 처리방침 확정이 필요합니다.")}
-        Row(verticalAlignment=Alignment.CenterVertically){Checkbox(agree,{agree=it});Text("[필수] 이용약관 및 개인정보 처리에 동의")}
+        Row(Modifier.fillMaxWidth().toggleable(value=agree,role=Role.Checkbox,onValueChange={agree=it}),verticalAlignment=Alignment.CenterVertically){Checkbox(agree,null);Text("[필수] 이용약관 및 개인정보 처리에 동의")}
+        errors["agree"]?.let { Text(it,color=MaterialTheme.colorScheme.error) }
     }
-    Primary(when(screen){"login"->"로그인";"reset"->"재설정 링크 발송";"newPassword"->"비밀번호 변경";else->"가입 완료"},!vm.busy){
+    Primary(when(screen){"login"->"로그인";"reset"->"재설정 링크 발송";"newPassword"->"비밀번호 변경";else->"가입 완료"},inputsEnabled){
+        submitted = true
+        if(screen=="signup" && Validation.signupErrors(email,password,confirm,nickname,agree).isNotEmpty()) return@Primary
+        if(screen=="completeSignup" && Validation.profileErrors(nickname,agree).isNotEmpty()) return@Primary
         when(screen){"login"->vm.login(email,password);"signup"->vm.signup(email,password,confirm,nickname,agree);"completeSignup"->vm.completeSignup(nickname,agree);"reset"->vm.resetPassword(email);"newPassword"->vm.newPassword(vm.route.id,password,confirm)}
     }
+    if(submitted && errors.isNotEmpty()) Text(errors.values.joinToString("\n"),color=MaterialTheme.colorScheme.error)
+    vm.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
     if(screen=="login") {MenuRow("이메일로 회원가입"){vm.navigate("signup")};MenuRow("비밀번호를 잊으셨나요?"){vm.navigate("reset")};TextButton(onClick={vm.backNow()},modifier=Modifier.fillMaxWidth()){Text("둘러보기")}}
     if(screen=="reset") Caption("계정 등록 여부와 관계없이 같은 안내를 표시해요. 메일 링크는 Firebase의 안전한 재설정 화면에서 열립니다.")
     if(screen=="completeSignup")TextButton(onClick={vm.cancelSocial()}){Text("취소하고 둘러보기")}

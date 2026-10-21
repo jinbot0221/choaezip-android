@@ -143,3 +143,11 @@ npx firebase deploy --project choaezip --only firestore,storage,functions
 ```
 
 Firestore 직접 쓰기 허용 규칙으로 변경할 필요는 없습니다. 서버 검증을 거쳐 저장합니다. Firebase 콘솔의 Firestore `posts` 컬렉션에서 작성 결과를 확인할 수 있습니다.
+
+### 로그인/가입이 진행되지 않을 때
+
+회원가입은 닉네임 2~20자, 이메일 형식, 비밀번호 8~64자, 비밀번호 확인 일치, 필수 동의가 필요합니다. 실패한 항목은 해당 입력란과 가입 버튼 아래에 표시합니다. 동의 문구 전체를 눌러 체크할 수 있습니다.
+
+Google 계정 선택 중에는 앱의 처리 중 Dialog를 띄우지 않습니다. 계정 선택을 마친 뒤 Firebase Auth 인증과 앱 서버의 프로필 조회를 진행합니다. Google 인증이 완료되고 프로필 조회가 실패하면 두 단계를 구분한 안내를 표시합니다. 이 경우 Google 로그인 버튼을 반복해서 누르기 전에 표시된 오류를 확인하세요. Firebase Auth에 계정이 있어도 앱의 `users/{UID}` 프로필과 서울 리전 callable `api`가 준비되어 있어야 앱 로그인이 완료됩니다. 신규 계정은 프로필이 없으면 닉네임/동의 입력 화면으로 이동합니다.
+
+Google 계정 선택 후 Firebase 인증 단계에서 실패하면 설치한 APK의 실제 SHA 인증서를 확인하세요. Android Studio에서 직접 빌드한 앱은 이 클라우드 APK와 서명 지문이 다를 수 있습니다. `./gradlew signingReport` 결과를 Firebase Android 앱에 등록하고 Google 공급자를 활성화한 후 최신 설정 JSON을 적용해야 합니다.

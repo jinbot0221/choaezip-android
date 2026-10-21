@@ -12,4 +12,8 @@ class AuthErrorsTest {
         assertTrue(message.contains("인터넷 연결"))
         assertFalse(message.contains("host"))
     }
+    @Test fun disabledProviderAndDuplicateEmailHaveDistinctMessages() {
+        assertTrue(authErrorMessage(com.google.firebase.auth.FirebaseAuthException("ERROR_OPERATION_NOT_ALLOWED", "disabled")).contains("비활성화"))
+        assertTrue(authErrorMessage(com.google.firebase.auth.FirebaseAuthException("ERROR_EMAIL_ALREADY_IN_USE", "duplicate")).contains("이미 가입"))
+    }
 }

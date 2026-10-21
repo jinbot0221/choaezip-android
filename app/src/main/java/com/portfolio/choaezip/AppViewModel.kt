@@ -146,7 +146,7 @@ class AppViewModel : ViewModel() {
         Backend.auth.signInWithEmailAndPassword(email.trim(), password).await(); afterAuth()
     }
     fun signup(email: String, password: String, confirm: String, nickname: String, agree: Boolean) = work {
-        require(Validation.email(email.trim()) && Validation.nickname(nickname) && Validation.password(password) && password == confirm && agree) { "닉네임, 이메일, 비밀번호(8~64자), 확인과 필수 동의를 확인해 주세요." }
+        require(Validation.signupErrors(email, password, confirm, nickname, agree).isEmpty()) { Validation.signupErrors(email, password, confirm, nickname, agree).values.first() }
         pendingNickname = nickname.trim(); pendingAgreement = agree
         val profileError = createEmailAccount(
             createAccount = { Backend.auth.createUserWithEmailAndPassword(email.trim(), password).await(); Unit },
@@ -157,6 +157,14 @@ class AppViewModel : ViewModel() {
             throw IllegalStateException("이메일 계정은 생성됐어요. 프로필 저장에 실패했으니 연결을 확인한 뒤 가입 완료를 다시 눌러 주세요.", profileError)
         }
         afterAuth()
+    }
+    suspend fun googleLogin(idToken: String) {
+        Backend.google(idToken)
+        try { afterAuth() }
+        catch(e: Exception) {
+            if(e is kotlinx.coroutines.CancellationException) throw e
+            throw IllegalStateException("Google 계정 인증은 완료됐지만 앱 프로필을 불러오지 못했어요. " + profileErrorMessage(e), e)
+        }
     }
     suspend fun afterAuth() {
         val result = runCatching { Backend.call("me") }
@@ -170,7 +178,7 @@ class AppViewModel : ViewModel() {
         refresh()
     }
     fun completeSignup(nickname: String, agree: Boolean) = work {
-        require(Validation.nickname(nickname) && agree) { "닉네임과 필수 동의를 확인해 주세요." }
+        require(Validation.profileErrors(nickname, agree).isEmpty()) { Validation.profileErrors(nickname, agree).values.first() }
         Backend.call("completeSignup", "nickname" to nickname, "terms" to agree, "privacy" to agree); afterAuth()
     }
     fun resetPassword(email: String) = work {

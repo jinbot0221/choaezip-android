@@ -35,4 +35,15 @@ class GuestNavigationTest {
         compose.onNodeWithContentDescription("홈", useUnmergedTree = true).performClick()
         compose.onNodeWithText("좋아하는 마음을\n차곡차곡 모아봐요").assertIsDisplayed()
     }
+    @Test fun signupShowsSpecificValidationAndAllowsTappingConsentText() {
+        compose.setContent { MaterialTheme { ChoaezipApp(remember { AppViewModel().apply { navigate("signup") } }) } }
+        compose.onNodeWithText("닉네임 (2~20자)").performScrollTo().performTextInput("테스터")
+        compose.onNodeWithText("이메일", substring=false).performScrollTo().performTextInput("fan@example.com")
+        compose.onNodeWithText("비밀번호 (8~64자)").performScrollTo().performTextInput("short")
+        compose.onNodeWithText("비밀번호 확인").performScrollTo().performTextInput("short")
+        compose.onNodeWithText("[필수] 이용약관 및 개인정보 처리에 동의").performScrollTo().performClick()
+        compose.onNodeWithText("[필수] 이용약관 및 개인정보 처리에 동의").assertIsOn()
+        compose.onNode(hasText("가입 완료") and hasClickAction()).performScrollTo().performClick()
+        compose.onAllNodesWithText("비밀번호는 8~64자로 입력해 주세요.").assertCountEquals(2)
+    }
 }
