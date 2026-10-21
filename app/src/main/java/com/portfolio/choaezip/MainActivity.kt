@@ -310,7 +310,7 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
     if(vm.me?.bool("restricted")==true) Panel(color=MaterialTheme.colorScheme.errorContainer){Text("일부 기능 이용이 제한되어 있어요.");Caption(vm.me?.str("restrictionReason")?:"문의는 운영자에게 연락해 주세요.")}
     MenuRow("프로필 수정"){vm.navigate("profile")};MenuRow("최애 변경"){vm.navigate("artists")};MenuRow("내 기록"){vm.navigate("records")};MenuRow("내 게시글"){vm.authorMe=true;vm.navigate("lounge")};MenuRow("알림함"){vm.navigate("notifications")};MenuRow("알림 설정"){vm.navigate("preferences")};MenuRow("차단 사용자"){vm.navigate("blocks")};MenuRow("로그아웃"){vm.logout()};MenuRow("계정 탈퇴"){vm.navigate("deleteAccount")}
 }
-private suspend fun googleCredential(context: android.content.Context): GoogleIdTokenCredential {
+private suspend fun googleCredential(context: android.content.Context): GoogleIdTokenCredential = FirebaseTrace.span("auth.google.credential") {
     require(!BuildConfig.USE_EMULATORS){"Google 로그인은 실제 Firebase 설정과 SHA 인증서 등록 후 사용할 수 있어요. Emulator에서는 이메일로 가입해 주세요."}
     val res=context.resources.getIdentifier("default_web_client_id","string",context.packageName)
     require(res!=0){"Firebase Google 공급자와 google-services.json을 설정해 주세요."}
@@ -319,7 +319,7 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
     catch (_: androidx.credentials.exceptions.GetCredentialCancellationException) { throw kotlinx.coroutines.CancellationException("Google sign-in cancelled") }
     catch (_: NoCredentialException) { error("사용 가능한 Google 계정이 없어요. 기기 계정을 확인해 주세요.") }
     require(result.credential.type==GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL){"Google 계정을 선택해 주세요."}
-    return GoogleIdTokenCredential.createFrom(result.credential.data)
+    GoogleIdTokenCredential.createFrom(result.credential.data)
 }
 @Composable fun AuthScreen(vm: AppViewModel) {
     val screen=vm.route.screen;val context=LocalContext.current
@@ -366,8 +366,14 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
     }
     Primary(when(screen){"login"->"로그인";"reset"->"재설정 링크 발송";"newPassword"->"비밀번호 변경";else->"가입 완료"},inputsEnabled){
         submitted = true
-        if(screen=="signup" && Validation.signupErrors(email,password,confirm,nickname,agree).isNotEmpty()) return@Primary
-        if(screen=="completeSignup" && Validation.profileErrors(nickname,agree).isNotEmpty()) return@Primary
+        if(screen=="signup" && Validation.signupErrors(email,password,confirm,nickname,agree).isNotEmpty()) {
+            FirebaseTrace.event("auth.signup.validation", "REJECTED", "fields=${Validation.signupErrors(email,password,confirm,nickname,agree).keys.joinToString(",")}")
+            return@Primary
+        }
+        if(screen=="completeSignup" && Validation.profileErrors(nickname,agree).isNotEmpty()) {
+            FirebaseTrace.event("auth.profile.validation", "REJECTED", "fields=${Validation.profileErrors(nickname,agree).keys.joinToString(",")}")
+            return@Primary
+        }
         when(screen){"login"->vm.login(email,password);"signup"->vm.signup(email,password,confirm,nickname,agree);"completeSignup"->vm.completeSignup(nickname,agree);"reset"->vm.resetPassword(email);"newPassword"->vm.newPassword(vm.route.id,password,confirm)}
     }
     if(submitted && errors.isNotEmpty()) Text(errors.values.joinToString("\n"),color=MaterialTheme.colorScheme.error)

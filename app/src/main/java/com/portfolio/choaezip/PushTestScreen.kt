@@ -25,7 +25,7 @@ import kotlinx.coroutines.tasks.await
     var error by remember { mutableStateOf<String?>(null) }
     var permissionGranted by remember { mutableStateOf(Build.VERSION.SDK_INT < 33 || context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        permissionGranted = it; vm.syncDevice()
+        permissionGranted = it; FirebaseTrace.event("fcm.permission", "INFO", "granted=$it"); vm.syncDevice()
     }
     Heading("이 기기로 알림 보내기")
     Caption("Firebase 콘솔에서 테스트 메시지를 보낼 때 아래 기기 토큰을 사용하세요. 로그인하지 않아도 수신할 수 있어요.")
@@ -39,7 +39,7 @@ import kotlinx.coroutines.tasks.await
             loading = true; error = null
             try {
                 check(!BuildConfig.USE_EMULATORS) { "실제 Firebase를 사용하는 앱에서 테스트해 주세요." }
-                token = FirebaseMessaging.getInstance().token.await()
+                token = Backend.fcmToken()
                 vm.syncDevice()
             } catch(e: Exception) {
                 if(e is kotlinx.coroutines.CancellationException) throw e

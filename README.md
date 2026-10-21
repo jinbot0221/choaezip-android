@@ -151,3 +151,24 @@ Firestore 직접 쓰기 허용 규칙으로 변경할 필요는 없습니다. �
 Google 계정 선택 중에는 앱의 처리 중 Dialog를 띄우지 않습니다. 계정 선택을 마친 뒤 Firebase Auth 인증과 앱 서버의 프로필 조회를 진행합니다. Google 인증이 완료되고 프로필 조회가 실패하면 두 단계를 구분한 안내를 표시합니다. 이 경우 Google 로그인 버튼을 반복해서 누르기 전에 표시된 오류를 확인하세요. Firebase Auth에 계정이 있어도 앱의 `users/{UID}` 프로필과 서울 리전 callable `api`가 준비되어 있어야 앱 로그인이 완료됩니다. 신규 계정은 프로필이 없으면 닉네임/동의 입력 화면으로 이동합니다.
 
 Google 계정 선택 후 Firebase 인증 단계에서 실패하면 설치한 APK의 실제 SHA 인증서를 확인하세요. Android Studio에서 직접 빌드한 앱은 이 클라우드 APK와 서명 지문이 다를 수 있습니다. `./gradlew signingReport` 결과를 Firebase Android 앱에 등록하고 Google 공급자를 활성화한 후 최신 설정 JSON을 적용해야 합니다.
+
+### 로그인·FCM 단계별 Logcat 확인 (debug 빌드)
+
+Android Studio Logcat에서 앱을 선택한 뒤 검색창에 `tag:ChoaezipFirebase`를 입력합니다. 앱을 다시 실행하고 Google 로그인 → 이메일 가입 → FCM 테스트를 각각 시도합니다. `status=START` 이후 같은 request 번호의 `OK`/`FAIL`과 `codes`, `types`를 확인하세요. START만 계속 남아 있으면 해당 단계에서 응답을 기다리고 있는 상태입니다.
+
+| stage | 확인하는 단계 |
+| --- | --- |
+| `firebase.init`, `firebase.config` | 로컬 Firebase 초기화, 프로젝트/패키지/Emulator 모드, OAuth·sender ID 설정 존재 여부, Google Play 서비스 버전 |
+| `auth.google.credential` | Google 계정 선택 및 ID 토큰 반환 |
+| `auth.google.firebase` | Google ID 토큰으로 Firebase Auth 인증 |
+| `auth.email.create`, `auth.email.login` | 이메일 계정 생성/로그인 |
+| `auth.signup.validation`, `auth.profile.validation` | 서버 호출 전 거절된 입력 항목 이름(값 제외) |
+| `auth.profile.load`, `functions.me`, `functions.completeSignup` | 앱 서버 프로필 조회/가입 완료 저장 |
+| `functions.savePost`, `storage.upload` | 라운지 서버 저장/사진 업로드 |
+| `fcm.token`, `fcm.token.refresh` | FCM 토큰 발급/갱신. debug 앱 시작 시 로그인과 별개로 발급 확인 |
+| `functions.device`, `fcm.device.register` | 로그인한 기기의 서버 등록. 콘솔 직접 테스트에는 불필요 |
+| `fcm.permission`, `fcm.receive`, `fcm.notification.settings`, `fcm.display` | 권한, 전경 메시지 수신, 기기/채널 설정, 알림 표시 요청 |
+
+`firebase.init OK`는 로컬 설정을 읽었다는 뜻이며 실제 서버 통신 성공을 의미하지 않습니다. `auth.google.firebase OK`/`auth.email.create OK`는 Auth 요청 성공, `fcm.token OK`는 토큰 발급 요청 성공입니다. FCM 토큰 발급은 Auth/Functions와 독립적으로 확인합니다. 콘솔 테스트는 먼저 앱이 열린 상태에서 보내 `fcm.receive`를 확인하세요. 백그라운드 notification 메시지는 SDK가 표시하여 이 서비스의 수신 로그가 나오지 않을 수 있습니다. `fcm.display SUBMITTED`는 Android에 표시를 요청했다는 뜻이며 화면 표시/전달 성공 보장이 아닙니다.
+
+공유할 로그는 위 태그의 초기화부터 실패까지입니다. 로그에는 비밀번호, 이메일, 사용자 UID, Google/Firebase ID 토큰, FCM 토큰 원문, 게시글 본문, SDK 예외 메시지를 출력하지 않습니다. 예외 종류와 SDK 오류 코드 및 스택 위치만 남깁니다. 실제 테스트에 필요한 FCM 토큰은 앱 화면의 복사 버튼을 사용하세요. 릴리스 빌드에서는 이 진단 로그를 출력하지 않습니다.

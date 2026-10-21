@@ -143,13 +143,13 @@ class AppViewModel : ViewModel() {
     }
     fun login(email: String, password: String) = work {
         require(Validation.email(email.trim())) { "이메일 형식을 확인해 주세요." }
-        Backend.auth.signInWithEmailAndPassword(email.trim(), password).await(); afterAuth()
+        FirebaseTrace.span("auth.email.login") { Backend.auth.signInWithEmailAndPassword(email.trim(), password).await() }; afterAuth()
     }
     fun signup(email: String, password: String, confirm: String, nickname: String, agree: Boolean) = work {
         require(Validation.signupErrors(email, password, confirm, nickname, agree).isEmpty()) { Validation.signupErrors(email, password, confirm, nickname, agree).values.first() }
         pendingNickname = nickname.trim(); pendingAgreement = agree
         val profileError = createEmailAccount(
-            createAccount = { Backend.auth.createUserWithEmailAndPassword(email.trim(), password).await(); Unit },
+            createAccount = { FirebaseTrace.span("auth.email.create") { Backend.auth.createUserWithEmailAndPassword(email.trim(), password).await() }; Unit },
             saveProfile = { Backend.call("completeSignup", "nickname" to pendingNickname, "terms" to agree, "privacy" to agree); Unit },
         )
         if (profileError != null) {
@@ -167,10 +167,10 @@ class AppViewModel : ViewModel() {
         }
     }
     suspend fun afterAuth() {
-        val result = runCatching { Backend.call("me") }
+        val result = runCatching { FirebaseTrace.span("auth.profile.load") { Backend.call("me") } }
         result.onSuccess {
-            applyProfile(it); clearAuthRoutes(); syncDevice(); message = "로그인했어요. 원하는 기능을 다시 선택해 주세요."
-        }.onFailure { if(it is FirebaseFunctionsException && it.code==FirebaseFunctionsException.Code.PERMISSION_DENIED) navigate("completeSignup") else throw it }
+            FirebaseTrace.event("auth.navigation", "OK", "destination=authenticated"); applyProfile(it); clearAuthRoutes(); syncDevice(); message = "로그인했어요. 원하는 기능을 다시 선택해 주세요."
+        }.onFailure { if(it is FirebaseFunctionsException && it.code==FirebaseFunctionsException.Code.PERMISSION_DENIED) { FirebaseTrace.event("auth.navigation", "INFO", "destination=completeSignup"); navigate("completeSignup") } else throw it }
     }
     private fun clearAuthRoutes() {
         pendingNickname = ""; pendingAgreement = false
@@ -252,10 +252,10 @@ class AppViewModel : ViewModel() {
         if (BuildConfig.USE_EMULATORS || !signedIn) return
         viewModelScope.launch {
             runCatching {
-                val token = FirebaseMessaging.getInstance().token.await()
+                val token = Backend.fcmToken()
                 val allowed = Build.VERSION.SDK_INT < 33 || Backend.context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
                 Backend.call("device", "installationId" to installationId, "token" to token, "permission" to allowed)
-            }
+            }.onFailure { if(it is Exception) FirebaseTrace.failure("fcm.device.register", it) }
         }
     }
     private var searchJob: Job? = null

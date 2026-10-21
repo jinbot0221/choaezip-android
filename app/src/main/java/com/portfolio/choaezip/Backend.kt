@@ -11,6 +11,7 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.util.UUID
@@ -24,7 +25,15 @@ fun Doc.bool(key: String) = this[key] == true
 fun Doc.strings(key: String) = (this[key] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
 
 class ChoaezipApplication : Application() {
-    override fun onCreate() { super.onCreate(); PushChannels.create(this); Backend.init(this) }
+    override fun onCreate() {
+        super.onCreate(); PushChannels.create(this); Backend.init(this)
+        if(BuildConfig.DEBUG && !BuildConfig.USE_EMULATORS) {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                // Independent of Auth and Functions: diagnose FCM connectivity on app start.
+                runCatching { Backend.fcmToken() }
+            }
+        }
+    }
 }
 object Backend {
     lateinit var context: Application
@@ -32,7 +41,7 @@ object Backend {
     lateinit var functions: FirebaseFunctions
     lateinit var storage: FirebaseStorage
     var configured = false
-    fun init(context: Application) {
+    fun init(context: Application) = FirebaseTrace.sync("firebase.init") {
         this.context = context
         val app = if (BuildConfig.USE_EMULATORS) FirebaseApp.getApps(context).firstOrNull { it.name == "choaezip-emulator" } ?: FirebaseApp.initializeApp(context,
             FirebaseOptions.Builder().setProjectId("demo-choaezip")
@@ -40,7 +49,10 @@ object Backend {
                 .setApiKey("AIzaSy" + "0".repeat(33)) // Syntactically valid demo-only key; never used for a real Firebase project.
                 .setStorageBucket("demo-choaezip.appspot.com").build(), "choaezip-emulator")
         else FirebaseApp.initializeApp(context)
-        if (app == null) return
+        checkNotNull(app) { "Firebase initialization failed: missing app configuration" }
+        val webClient = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
+        val playServices = runCatching { context.packageManager.getPackageInfo("com.google.android.gms", 0).versionName }.getOrNull()
+        FirebaseTrace.event("firebase.config", "INFO", "project=${app.options.projectId} package=${context.packageName} appName=${app.name} emulator=${BuildConfig.USE_EMULATORS} apiKeyPresent=${app.options.apiKey.isNotBlank()} webClientPresent=${webClient != 0} senderIdPresent=${!app.options.gcmSenderId.isNullOrBlank()} bucketPresent=${!app.options.storageBucket.isNullOrBlank()} playServicesVersion=${playServices ?: "missing"} functionsRegion=asia-northeast3")
         auth = FirebaseAuth.getInstance(app)
         functions = FirebaseFunctions.getInstance(app, "asia-northeast3")
         storage = FirebaseStorage.getInstance(app)
@@ -54,7 +66,9 @@ object Backend {
     @Suppress("UNCHECKED_CAST")
     suspend fun call(action: String, vararg args: Pair<String, Any?>): Doc {
         check(configured) { "Firebase 설정이 필요해요. google-services.json을 확인해 주세요." }
-        return functions.getHttpsCallable("api").call(mapOf("action" to action, *args)).await().data as? Doc ?: emptyMap()
+        return FirebaseTrace.span("functions.$action") {
+            functions.getHttpsCallable("api").call(mapOf("action" to action, *args)).await().data as? Doc ?: emptyMap()
+        }
     }
     suspend fun upload(uri: Uri, purpose: String): String {
         val uid = auth.currentUser?.uid ?: error("로그인이 필요해요.")
@@ -80,8 +94,15 @@ object Backend {
         require(bytes.size <= 10 * 1024 * 1024) { "사진은 한 장당 10MB 이하여야 해요." }
         val path = "uploads/$uid/${UUID.randomUUID()}"
         val metadata = com.google.firebase.storage.StorageMetadata.Builder().setContentType(mime).setCustomMetadata("purpose", purpose).build()
-        storage.reference.child(path).putBytes(bytes, metadata).await()
+        FirebaseTrace.span("storage.upload") { storage.reference.child(path).putBytes(bytes, metadata).await() }
         return path
     }
-    suspend fun google(token: String) { auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await() }
+    suspend fun google(token: String) = FirebaseTrace.span("auth.google.firebase") {
+        auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
+        Unit
+    }
+    suspend fun fcmToken(): String = FirebaseTrace.span("fcm.token") {
+        check(configured && !BuildConfig.USE_EMULATORS) { "Real Firebase configuration required" }
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+    }
 }
