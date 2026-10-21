@@ -2,8 +2,11 @@
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST ||= '127.0.0.1:9099';
 process.env.FIREBASE_STORAGE_EMULATOR_HOST ||= '127.0.0.1:9199';
-const {initializeApp}=require('../functions/node_modules/firebase-admin/app');
-const {getFirestore}=require('../functions/node_modules/firebase-admin/firestore');
+const {createRequire}=require('node:module');
+const path=require('node:path');
+const requireFunctions=createRequire(path.join(__dirname,'../functions/package.json'));
+const {initializeApp}=requireFunctions('firebase-admin/app');
+const {getFirestore}=requireFunctions('firebase-admin/firestore');
 initializeApp({projectId:'demo-choaezip',storageBucket:'demo-choaezip.appspot.com'});
 const db=getFirestore();
 async function main(){

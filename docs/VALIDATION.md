@@ -22,3 +22,11 @@ Firebase 통합 테스트에는 비회원 쓰기 거부, 가입 완료 검사, �
 네트워크 초안에 `storage.googleapis.com`과 `firebase-public.firebaseio.com`을 추가했습니다. 환경 설정에서 검토·저장해 런타임에 적용한 뒤 `source scripts/cloud-env.sh && npm test`로 통합 테스트를 진행해야 합니다. 설치/시작 지침도 환경 설정 초안에 저장했으며, 초안 저장은 실행·배포·환경 게시를 의미하지 않습니다.
 
 Firebase 서비스 계정 키·릴리스 서명 키·실제 `google-services.json`은 저장소에 넣지 않았습니다. 디버그 APK는 Emulator 연결용으로, 운영 Firebase에 연결하려면 README의 실제 프로젝트 설정 절차가 필요합니다.
+
+## 2026-10-21 실제 APK 실행 추가 검증
+
+- 네트워크 설정이 적용된 현재 머신에서 Firebase Auth / Firestore / Functions / Storage Emulator 기동과 시연 seed 실행을 확인했습니다. 위 2026-10-20의 다운로드 차단 상태는 당시 결과입니다.
+- 실제 실행 중 확인한 개발용 Firebase Options의 SDK 형식 검증 오류와 seed 스크립트의 패키지 exports 해석 오류를 수정했습니다. 키와 app ID는 demo 프로젝트 전용의 비운영 값입니다.
+- 수정 후 `assembleDebug` 및 기존 Android 테스트 3개가 통과했습니다.
+- 하드웨어 가속 없이 Android 10(AOSP) 가상 기기에서 APK 설치·실행, 공개 일정 조회, 이메일 Emulator 로그인, 본인 기록 조회, 공개 라운지 조회, 마이 프로필 조회를 직접 확인했습니다. 홈·일정·기록·라운지·로그인/게스트 마이 스크린샷을 README에 추가했습니다.
+- 실제 Firebase 프로젝트, 실제 Google 로그인, 외부 메일 전달, FCM 전송은 여전히 미검증입니다. 서버 통합 테스트 14개 전체의 재실행 완료를 주장하지 않습니다.

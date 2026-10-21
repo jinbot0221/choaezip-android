@@ -8,6 +8,20 @@
 - Kotlin 2.1.21, AGP 8.11.1, Gradle 8.13, JDK 21, Node 22
 - 고객 화면은 한국어, 일정·예약 기준 시간대는 Asia/Seoul
 
+## 실제 실행 화면
+
+2026-10-21에 Android 10(AOSP) 에뮬레이터에서 디버그 APK를 실행해 캡처했습니다. 해상도는 780 × 1688px(390 × 844dp)입니다. Firebase Emulator에 연결했으며 LUMI, 닉네임, 기록과 글은 가상의 시연 데이터입니다. 상단의 개발 환경 표시는 debug 빌드에만 나타납니다.
+
+| 홈 | 일정 | 비공개 기록 |
+|---|---|---|
+| <img src="docs/screenshots/home.png" width="240" alt="실행 화면: 홈" /> | <img src="docs/screenshots/calendar.png" width="240" alt="실행 화면: 월별 일정" /> | <img src="docs/screenshots/records.png" width="240" alt="실행 화면: 로그인한 계정의 비공개 기록" /> |
+
+| 팬라운지 | 마이 · 로그인 상태 | 마이 · 게스트 |
+|---|---|---|
+| <img src="docs/screenshots/lounge.png" width="240" alt="실행 화면: 팬라운지" /> | <img src="docs/screenshots/my.png" width="240" alt="실행 화면: 마이" /> | <img src="docs/screenshots/my-guest.png" width="240" alt="실행 화면: 게스트 로그인 안내" /> |
+
+일정과 목록은 스크롤해서 계속 볼 수 있습니다. 이미지 원본은 [docs/screenshots](docs/screenshots)에 있습니다.
+
 ## 개발 실행
 
 Android Studio에서 프로젝트 루트를 열고 Android SDK 36 / Build Tools 35.0.0 및 JDK 21을 준비합니다.

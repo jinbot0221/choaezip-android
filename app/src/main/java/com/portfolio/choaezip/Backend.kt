@@ -36,8 +36,9 @@ object Backend {
         this.context = context
         val app = if (BuildConfig.USE_EMULATORS) FirebaseApp.getApps(context).firstOrNull { it.name == "choaezip-emulator" } ?: FirebaseApp.initializeApp(context,
             FirebaseOptions.Builder().setProjectId("demo-choaezip")
-                .setApplicationId("1:123456789:android:choaezip")
-                .setApiKey("demo-api-key").setStorageBucket("demo-choaezip.appspot.com").build(), "choaezip-emulator")
+                .setApplicationId("1:123456789:android:0000000000000000000000")
+                .setApiKey("AIzaSy" + "0".repeat(33)) // Syntactically valid demo-only key; never used for a real Firebase project.
+                .setStorageBucket("demo-choaezip.appspot.com").build(), "choaezip-emulator")
         else FirebaseApp.initializeApp(context)
         if (app == null) return
         auth = FirebaseAuth.getInstance(app)
