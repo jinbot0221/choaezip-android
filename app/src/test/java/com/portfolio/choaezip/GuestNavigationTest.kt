@@ -20,6 +20,7 @@ class GuestNavigationTest {
     }
     @Test fun guestCanOpenRecordsButCannotWriteWithoutLogin() {
         launch()
+        compose.onNodeWithText("개발 환경 · Firebase Emulator").assertDoesNotExist()
         compose.onNodeWithContentDescription("기록", useUnmergedTree = true).performClick()
         compose.onNodeWithText("소중한 순간을 남겨보세요").assertIsDisplayed()
         compose.onNodeWithText("로그인하기").performScrollTo().performClick()

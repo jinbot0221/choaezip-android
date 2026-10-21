@@ -3,8 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
-val useEmulators = providers.gradleProperty("useEmulators").orElse("true").get().toBoolean()
-if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+val useEmulators = providers.gradleProperty("useEmulators").orElse("false").get().toBoolean()
+if (!useEmulators && file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
 android {
     namespace = "com.portfolio.choaezip"
     compileSdk = 36
@@ -25,6 +25,11 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isIncludeAndroidResources = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+}
+tasks.matching { it.name == "preBuild" }.configureEach {
+    doFirst { check(useEmulators || file("google-services.json").exists()) {
+        "Add app/google-services.json for Firebase, or explicitly use -PuseEmulators=true for local testing."
+    } }
 }
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     doFirst { check(!useEmulators && file("google-services.json").exists()) {

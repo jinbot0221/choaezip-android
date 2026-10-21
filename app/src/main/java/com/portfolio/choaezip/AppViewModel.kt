@@ -44,6 +44,8 @@ class AppViewModel : ViewModel() {
     var filter by mutableStateOf("")
     var authorMe by mutableStateOf(false)
     var cursor by mutableStateOf<String?>(null); private set
+    var pendingNickname by mutableStateOf(""); private set
+    var pendingAgreement by mutableStateOf(false); private set
     var loginPrompt by mutableStateOf(false)
     var dirty by mutableStateOf(false)
     var discardPrompt by mutableStateOf(false)
@@ -114,7 +116,7 @@ class AppViewModel : ViewModel() {
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 if (run == generation) {
-                    error = friendly(e)
+                    error = authErrorMessage(e)
                     if(current.screen in listOf("home", "calendar")) {
                         runCatching { parseJson(JSONObject(prefs.getString(publicCacheKey, "{}") ?: "{}")) as Doc }.onSuccess { cached ->
                             data = cached + ("cached" to true); items = cached.rows(); schedules = cached.rows()
@@ -133,30 +135,27 @@ class AppViewModel : ViewModel() {
     fun work(block: suspend () -> Unit) {
         if (busy) return
         busy = true; error = null
-        viewModelScope.launch { try { block() } catch(e: Exception) { error = friendly(e) } finally { busy = false } }
-    }
-    private fun friendly(e: Exception): String = when(e) {
-        is FirebaseAuthException -> if (e.errorCode == "ERROR_NETWORK_REQUEST_FAILED") "연결을 확인하고 다시 시도해 주세요." else "인증에 실패했어요. 입력 정보와 로그인 방법을 확인해 주세요."
-        is FirebaseFunctionsException -> when(e.code) {
-            FirebaseFunctionsException.Code.UNAUTHENTICATED -> "로그인이 필요해요. 다시 로그인해 주세요."
-            FirebaseFunctionsException.Code.UNAVAILABLE -> "서버에 연결할 수 없어요. 네트워크와 Firebase 실행 상태를 확인해 주세요."
-            FirebaseFunctionsException.Code.ABORTED -> "다른 곳에서 변경됐어요. 입력은 보관되므로 최신 내용을 확인한 뒤 다시 시도해 주세요."
-            else -> e.message ?: "요청을 처리하지 못했어요."
-        }
-        else -> e.localizedMessage ?: "처리 중 문제가 생겼어요. 다시 시도해 주세요."
+        viewModelScope.launch { try { block() } catch(e: Exception) { if(e is kotlinx.coroutines.CancellationException) throw e; error = authErrorMessage(e) } finally { busy = false } }
     }
     fun selectArtist(id: String) = work {
         if (signedIn) Backend.call("favorite", "artistId" to id)
         artistId = id; prefs.edit().putString("artist", id).apply(); backNow()
     }
     fun login(email: String, password: String) = work {
-        require(Validation.email(email)) { "이메일 형식을 확인해 주세요." }
+        require(Validation.email(email.trim())) { "이메일 형식을 확인해 주세요." }
         Backend.auth.signInWithEmailAndPassword(email.trim(), password).await(); afterAuth()
     }
     fun signup(email: String, password: String, confirm: String, nickname: String, agree: Boolean) = work {
-        require(Validation.email(email) && Validation.nickname(nickname) && Validation.password(password) && password == confirm && agree) { "닉네임, 이메일, 비밀번호(8~64자), 확인과 필수 동의를 확인해 주세요." }
-        Backend.auth.createUserWithEmailAndPassword(email.trim(), password).await()
-        Backend.call("completeSignup", "nickname" to nickname, "terms" to agree, "privacy" to agree)
+        require(Validation.email(email.trim()) && Validation.nickname(nickname) && Validation.password(password) && password == confirm && agree) { "닉네임, 이메일, 비밀번호(8~64자), 확인과 필수 동의를 확인해 주세요." }
+        pendingNickname = nickname.trim(); pendingAgreement = agree
+        val profileError = createEmailAccount(
+            createAccount = { Backend.auth.createUserWithEmailAndPassword(email.trim(), password).await(); Unit },
+            saveProfile = { Backend.call("completeSignup", "nickname" to pendingNickname, "terms" to agree, "privacy" to agree); Unit },
+        )
+        if (profileError != null) {
+            navigate("completeSignup")
+            throw IllegalStateException("이메일 계정은 생성됐어요. 프로필 저장에 실패했으니 연결을 확인한 뒤 가입 완료를 다시 눌러 주세요.", profileError)
+        }
         afterAuth()
     }
     suspend fun afterAuth() {
@@ -166,14 +165,16 @@ class AppViewModel : ViewModel() {
         }.onFailure { if(it is FirebaseFunctionsException && it.code==FirebaseFunctionsException.Code.PERMISSION_DENIED) navigate("completeSignup") else throw it }
     }
     private fun clearAuthRoutes() {
+        pendingNickname = ""; pendingAgreement = false
         while(stack.size > 1 && stack.last().screen in listOf("login","signup","completeSignup","reset","newPassword")) stack.removeAt(stack.lastIndex)
         refresh()
     }
     fun completeSignup(nickname: String, agree: Boolean) = work {
+        require(Validation.nickname(nickname) && agree) { "닉네임과 필수 동의를 확인해 주세요." }
         Backend.call("completeSignup", "nickname" to nickname, "terms" to agree, "privacy" to agree); afterAuth()
     }
     fun resetPassword(email: String) = work {
-        require(Validation.email(email)) { "이메일 형식을 확인해 주세요." }
+        require(Validation.email(email.trim())) { "이메일 형식을 확인해 주세요." }
         try { Backend.auth.sendPasswordResetEmail(email.trim()).await() }
         catch(e: FirebaseAuthException) { if(e.errorCode !in listOf("ERROR_USER_NOT_FOUND","ERROR_INVALID_EMAIL")) throw e }
         message = "가입된 이메일이라면 재설정 메일을 보냈어요. 스팸함도 확인해 주세요."
@@ -219,6 +220,10 @@ class AppViewModel : ViewModel() {
         Backend.auth.signOut(); clearPrivate(); navigate("home"); message = "로그아웃했어요."
     }
     private fun clearPrivate() {
+        pendingNickname = ""; pendingAgreement = false
+        viewModelScope.launch {
+            runCatching { androidx.credentials.CredentialManager.create(Backend.context).clearCredentialState(androidx.credentials.ClearCredentialStateRequest()) }
+        }
         me = null; data = emptyMap(); items = emptyList()
         prefs.all.keys.filter { it.startsWith("draft_") }.forEach { prefs.edit().remove(it).apply() }
         (Backend.context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
@@ -247,6 +252,6 @@ class AppViewModel : ViewModel() {
     }
     private var searchJob: Job? = null
     fun searchArtists(q: String) {
-        searchJob?.cancel(); searchJob = viewModelScope.launch { delay(300); runCatching { Backend.call("artists", "q" to q) }.onSuccess { artistResults=it.rows() }.onFailure { error=friendly(it as Exception) } }
+        searchJob?.cancel(); searchJob = viewModelScope.launch { delay(300); runCatching { Backend.call("artists", "q" to q) }.onSuccess { artistResults=it.rows() }.onFailure { error=authErrorMessage(it as Exception) } }
     }
 }

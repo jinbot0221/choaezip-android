@@ -43,7 +43,7 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.tasks.await
@@ -97,7 +97,6 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
         } }, snackbarHost={ SnackbarHost(snackbar) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
-            if(BuildConfig.USE_EMULATORS) Text("개발 환경 · Firebase Emulator",Modifier.fillMaxWidth().background(Lavender).padding(horizontal=20.dp,vertical=5.dp),fontSize=11.sp,color=Purple)
             if(vm.busy || vm.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             vm.error?.let { msg -> Surface(color=MaterialTheme.colorScheme.errorContainer) { Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically) { Text(msg,Modifier.weight(1f),fontSize=13.sp); TextButton(onClick={vm.refresh()}) {Text("다시 조회")} } } }
             key(vm.route) {
@@ -310,16 +309,17 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
     require(!BuildConfig.USE_EMULATORS){"Google 로그인은 실제 Firebase 설정과 SHA 인증서 등록 후 사용할 수 있어요. Emulator에서는 이메일로 가입해 주세요."}
     val res=context.resources.getIdentifier("default_web_client_id","string",context.packageName)
     require(res!=0){"Firebase Google 공급자와 google-services.json을 설정해 주세요."}
-    val option=GetGoogleIdOption.Builder().setServerClientId(context.getString(res)).setFilterByAuthorizedAccounts(false).setAutoSelectEnabled(false).build()
+    val option=GetSignInWithGoogleOption.Builder(context.getString(res)).build()
     val result=try { CredentialManager.create(context).getCredential(context,GetCredentialRequest.Builder().addCredentialOption(option).build()) }
+    catch (_: androidx.credentials.exceptions.GetCredentialCancellationException) { throw kotlinx.coroutines.CancellationException("Google sign-in cancelled") }
     catch (_: NoCredentialException) { error("사용 가능한 Google 계정이 없어요. 기기 계정을 확인해 주세요.") }
     require(result.credential.type==GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL){"Google 계정을 선택해 주세요."}
     return GoogleIdTokenCredential.createFrom(result.credential.data)
 }
 @Composable fun AuthScreen(vm: AppViewModel) {
     val screen=vm.route.screen;val context=LocalContext.current
-    var email by rememberSaveable{mutableStateOf("")}; var nickname by rememberSaveable{mutableStateOf("")}
-    var password by remember{mutableStateOf("")};var confirm by remember{mutableStateOf("")};var agree by rememberSaveable{mutableStateOf(false)}
+    var email by rememberSaveable{mutableStateOf("")}; var nickname by rememberSaveable{mutableStateOf(vm.pendingNickname)}
+    var password by remember{mutableStateOf("")};var confirm by remember{mutableStateOf("")};var agree by rememberSaveable{mutableStateOf(vm.pendingAgreement)}
     Text("✦",fontSize=48.sp,color=Purple);Heading(if(screen=="login")"좋아하는 마음이\n모이는 곳, 최애.zip" else titles[screen]?:"")
     if(screen=="login"){
         OutlinedButton(onClick={vm.work{val credential=googleCredential(context);Backend.google(credential.idToken);vm.afterAuth()}},enabled=!vm.busy,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp)){Text("Google로 계속하기")}

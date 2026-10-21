@@ -10,7 +10,7 @@
 
 ## 실제 실행 화면
 
-2026-10-21에 Android 10(AOSP) 에뮬레이터에서 디버그 APK를 실행해 캡처했습니다. 해상도는 780 × 1688px(390 × 844dp)입니다. Firebase Emulator에 연결했으며 LUMI, 닉네임, 기록과 글은 가상의 시연 데이터입니다. 상단의 개발 환경 표시는 debug 빌드에만 나타납니다.
+2026-10-21에 Android 10(AOSP) 에뮬레이터에서 디버그 APK를 실행해 캡처했습니다. 해상도는 780 × 1688px(390 × 844dp)입니다. Firebase Emulator에 연결했으며 LUMI, 닉네임, 기록과 글은 가상의 시연 데이터입니다. 이전 버전 캡처이며, 현재 버전에서는 상단 개발 환경 문구를 제거했습니다.
 
 | 홈 | 일정 | 비공개 기록 |
 |---|---|---|
@@ -36,10 +36,10 @@ npm run emulators
 
 ```bash
 npm run seed
-./gradlew assembleDebug
+./gradlew assembleDebug -PuseEmulators=true
 ```
 
-Android 에뮬레이터에 `app/build/outputs/apk/debug/app-debug.apk`를 설치합니다. 기본 debug 빌드는 개발용 `demo-choaezip` Firebase Emulator의 `10.0.2.2`에 연결합니다. **Firebase Emulator가 실행 중이어야 데이터와 이메일 가입이 동작합니다.** 가상 아티스트 LUMI와 예시 일정은 seed로만 등록합니다. 실제 데이터를 가장하는 오프라인 가짜 저장 동작은 없습니다.
+Android 에뮬레이터에 `app/build/outputs/apk/debug/app-debug.apk`를 설치합니다. `-PuseEmulators=true`로 명시한 테스트 빌드는 개발용 `demo-choaezip` Firebase Emulator의 `10.0.2.2`에 연결합니다. **Firebase Emulator가 실행 중이어야 데이터와 이메일 가입이 동작합니다.** 가상 아티스트 LUMI와 예시 일정은 seed로만 등록합니다. 실제 데이터를 가장하는 오프라인 가짜 저장 동작은 없습니다.
 
 실제 Android 기기를 USB로 연결하는 경우:
 
@@ -47,7 +47,7 @@ Android 에뮬레이터에 `app/build/outputs/apk/debug/app-debug.apk`를 설치
 adb reverse tcp:9099 tcp:9099
 adb reverse tcp:5001 tcp:5001
 adb reverse tcp:9199 tcp:9199
-./gradlew assembleDebug -PemulatorHost=127.0.0.1
+./gradlew assembleDebug -PuseEmulators=true -PemulatorHost=127.0.0.1
 ```
 
 ## 실제 Firebase 연결
@@ -86,7 +86,7 @@ Firebase 콘솔의 실제 아티스트/일정 데이터가 있어야 고객 목�
 자세한 화면 대응과 차이점은 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md), 배포·보안 설명은 [docs/FIREBASE.md](docs/FIREBASE.md)를 참고하세요.
 
 ```bash
-./gradlew assembleDebug testDebugUnitTest lintDebug
+./gradlew -PuseEmulators=true assembleDebug testDebugUnitTest lintDebug
 node --test functions/test/policy.test.js
 npm test  # Auth, Firestore, Functions, Storage 실제 Emulator 통합 테스트
 ```
@@ -105,3 +105,17 @@ npm run emulators
 ```
 
 설치 스크립트는 `/workspace/toolchains`에 검증된 도구를 설치합니다. 시스템 CA와 프록시를 사용하며 TLS·체크섬 검증을 끄지 않습니다. Firebase Emulator 최초 다운로드에는 `storage.googleapis.com` 접근이 필요합니다. Android Emulator/실기기 실행과 실제 Firebase 배포는 별도 단계입니다.
+
+### Firebase 연결 수정 (2026-10-21)
+
+일반 빌드는 실제 Firebase를 사용합니다. 제공된 `choaezip` 프로젝트의 설정 파일을 로컬 `app/google-services.json`에 적용했습니다. 설정 파일은 Git에 포함하지 않으므로 다른 환경에서 빌드할 때도 같은 위치에 넣어야 합니다. 로컬 Emulator는 `-PuseEmulators=true`를 명시한 경우에만 사용합니다.
+
+Google 버튼은 Credential Manager의 Google 로그인 요청으로 계정을 선택하고 ID 토큰을 Firebase Auth로 전달합니다. 콘솔에서 Google 및 이메일/비밀번호 공급자를 활성화하고, 설치할 APK의 SHA 인증서를 등록해야 합니다. 클라이언트 설정 파일만으로 공급자 활성화나 Functions 배포 여부는 확인할 수 없습니다. 계정 생성 후 프로필 저장이 실패하면 계정을 다시 생성하지 않고 가입 완료 화면에서 재시도합니다.
+
+이 클라우드 환경의 debug APK 인증서 SHA-1:
+`A4:48:75:6F:DC:7E:4D:C3:76:47:C9:F2:05:83:02:30:76:F8:EE:E2`
+
+SHA-256:
+`86:58:08:ED:53:8D:EC:33:13:95:26:FB:A9:E2:AE:EE:82:21:95:4A:3E:D4:AA:7E:C6:41:35:C7:B7:45:7A:F0`
+
+로컬 Android Studio나 출시 키로 빌드하면 인증서가 달라집니다. 해당 환경에서 `./gradlew signingReport`로 확인하여 추가 등록하세요.

@@ -30,3 +30,12 @@ Firebase 서비스 계정 키·릴리스 서명 키·실제 `google-services.jso
 - 수정 후 `assembleDebug` 및 기존 Android 테스트 3개가 통과했습니다.
 - 하드웨어 가속 없이 Android 10(AOSP) 가상 기기에서 APK 설치·실행, 공개 일정 조회, 이메일 Emulator 로그인, 본인 기록 조회, 공개 라운지 조회, 마이 프로필 조회를 직접 확인했습니다. 홈·일정·기록·라운지·로그인/게스트 마이 스크린샷을 README에 추가했습니다.
 - 실제 Firebase 프로젝트, 실제 Google 로그인, 외부 메일 전달, FCM 전송은 여전히 미검증입니다. 서버 통합 테스트 14개 전체의 재실행 완료를 주장하지 않습니다.
+
+## 2026-10-21 Firebase 실프로젝트 연결 및 인증 수정
+
+- 사용자 제공 `choaezip` 프로젝트 설정으로 `assembleDebug` 성공. 패키지 `com.portfolio.choaezip`, 생성 BuildConfig `USE_EMULATORS=false` 확인. 설정 JSON은 Git 제외.
+- `testDebugUnitTest lintDebug` 성공. 전체 7개 테스트 통과. 개발 배너 제거, FirebaseNetworkException의 한국어 안내, 계정 생성 실패 시 프로필 호출 방지, 계정 생성 후 프로필 저장 실패 분리, 취소 전파 검증 포함.
+- Google 명시적 로그인 요청 → Google ID 토큰 → Firebase Auth 연결 구현. 사용자 취소는 오류 표시 없이 처리하며 로그아웃/탈퇴 시 Credential Manager 상태 초기화.
+- 이메일 계정 생성 후 프로필 저장만 실패하면 가입 완료 화면으로 전환하고 닉네임/동의를 유지하여 재시도. 비밀번호는 저장하지 않음.
+- 이 환경에서 실제 Firebase Auth 설정 조회는 네트워크 연결 실패(curl 56)로 검증하지 못함. 실제 Google 계정 로그인 및 실제 이메일 계정 생성은 미검증. 콘솔 공급자 활성화, APK 서명 SHA 등록, 실제 프로젝트의 Functions/Firestore/Storage 배포 여부는 별도 확인 필요.
+- 기존 실행 스크린샷은 이번 수정 이전 버전이며 새 실행 화면 검증으로 간주하지 않음.

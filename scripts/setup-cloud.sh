@@ -51,7 +51,7 @@ if [[ ! -f "$repo_dir/local.properties" ]]; then printf 'sdk.dir=%s\n' "$ANDROID
 cd "$repo_dir"
 npm ci
 npm --prefix functions ci
-./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
+./gradlew --no-daemon -PuseEmulators=true assembleDebug testDebugUnitTest lintDebug
 node --test functions/test/policy.test.js
 # Integration requires storage.googleapis.com in environment network settings.
 if [[ "${RUN_FIREBASE_INTEGRATION:-0}" == 1 ]]; then npm test; fi
