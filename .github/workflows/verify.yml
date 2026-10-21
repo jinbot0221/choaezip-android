@@ -15,6 +15,12 @@ jobs:
       - uses: android-actions/setup-android@v3
       - run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:android-spark
       - run: ./gradlew --no-daemon -PuseEmulators=true assembleDebug testDebugUnitTest lintDebug
       - uses: actions/upload-artifact@v4
         if: always()
@@ -35,5 +41,5 @@ jobs:
         with:
           node-version: '22.16.0'
           cache: npm
-      - run: npm ci && npm --prefix functions ci
+      - run: npm ci
       - run: npm test

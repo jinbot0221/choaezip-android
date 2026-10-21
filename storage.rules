@@ -1,17 +1,7 @@
 rules_version = '2';
-service firebase.storage { match /b/{bucket}/o {
-  match /uploads/{uid}/{file} {
-    allow create: if request.auth != null && request.auth.uid == uid
-      && firestore.exists(/databases/(default)/documents/users/$(uid))
-      && firestore.get(/databases/(default)/documents/users/$(uid)).data.completed == true
-      && request.resource.metadata.purpose in ['record', 'post']
-      && request.resource.size <= 10 * 1024 * 1024
-      && request.resource.contentType.matches('image/(jpeg|png|webp)');
-    allow read: if request.auth != null && request.auth.uid == uid
-      && firestore.exists(/databases/(default)/documents/users/$(uid))
-      && firestore.get(/databases/(default)/documents/users/$(uid)).data.completed == true;
-    allow delete: if request.auth != null && request.auth.uid == uid;
-    allow update: if false;
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Spark build: photo uploads are disabled. Restore reviewed rules before re-enabling.
+    match /{path=**} { allow read, write: if false; }
   }
-  match /{all=**} { allow read, write: if false; }
-}}
+}

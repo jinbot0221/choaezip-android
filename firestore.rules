@@ -1,5 +1,133 @@
 rules_version = '2';
-service cloud.firestore { match /databases/{database}/documents {
-  // All access is through authenticated, validated callable Functions.
-  match /{document=**} { allow read, write: if false; }
-}}
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function owner(uid) { return signed() && request.auth.uid == uid; }
+    function member() {
+      return signed() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.completed == true
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('restricted', false) == false;
+    }
+    function text(value, min, max) { return value is string && value.size() >= min && value.size() <= max && (min == 0 || value.matches('(?s).*[^\\s].*')); }
+    function artist(value) { return value == 'general' || (value is string && exists(/databases/$(database)/documents/artists/$(value)) && get(/databases/$(database)/documents/artists/$(value)).data.active == true); }
+    function publicPost(pid) { return exists(/databases/$(database)/documents/posts/$(pid)) && get(/databases/$(database)/documents/posts/$(pid)).data.hidden == false; }
+    function unblocked(uid) {
+      return request.auth.uid == uid || (!exists(/databases/$(database)/documents/users/$(request.auth.uid)/blocks/$(uid)) && !exists(/databases/$(database)/documents/users/$(uid)/blocks/$(request.auth.uid)));
+    }
+    function profile(d) { return d.keys().hasOnly(['nickname','bio']) && text(d.nickname,2,20) && text(d.bio,0,100); }
+    function matchingPublic(uid, data) {
+      let pub = getAfter(/databases/$(database)/documents/publicProfiles/$(uid)).data;
+      return pub.nickname == data.nickname && pub.bio == data.bio;
+    }
+    match /artists/{id} { allow read: if true; allow write: if false; }
+    match /schedules/{id} { allow read: if true; allow write: if false; }
+    match /users/{uid} {
+      allow get: if owner(uid);
+      allow create: if owner(uid)
+        && request.resource.data.keys().hasOnly(['nickname','bio','completed','termsVersion','privacyVersion','createdAt','consentedAt'])
+        && text(request.resource.data.nickname,2,20) && request.resource.data.bio == ''
+        && request.resource.data.completed == true
+        && request.resource.data.termsVersion == '1.0' && request.resource.data.privacyVersion == '1.0'
+        && request.resource.data.createdAt == request.time && request.resource.data.consentedAt == request.time
+        && matchingPublic(uid, request.resource.data);
+      allow update: if owner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname','bio','artistId'])
+        && text(request.resource.data.nickname,2,20) && text(request.resource.data.bio,0,100)
+        && (!('artistId' in request.resource.data) || artist(request.resource.data.artistId))
+        && matchingPublic(uid, request.resource.data);
+      allow delete: if owner(uid) && !existsAfter(/databases/$(database)/documents/publicProfiles/$(uid));
+      match /blocks/{target} {
+        allow get: if owner(uid) || owner(target);
+        allow list: if owner(uid);
+        allow create: if owner(uid) && member() && uid != target
+          && request.resource.data.keys().hasOnly(['createdAt']) && request.resource.data.createdAt == request.time;
+        allow delete: if owner(uid);
+      }
+    }
+    match /publicProfiles/{uid} {
+      allow read: if true;
+      allow create, update: if owner(uid) && profile(request.resource.data)
+        && getAfter(/databases/$(database)/documents/users/$(uid)).data.completed == true
+        && getAfter(/databases/$(database)/documents/users/$(uid)).data.nickname == request.resource.data.nickname
+        && getAfter(/databases/$(database)/documents/users/$(uid)).data.bio == request.resource.data.bio;
+      allow delete: if owner(uid) && !existsAfter(/databases/$(database)/documents/users/$(uid));
+    }
+    function content(d, record) {
+      return text(d.title,2,record ? 50 : 80) && text(d.body,1,record ? 2000 : 3000)
+        && artist(d.artistId) && d.media is list && d.media.size() == 0
+        && d.version is int && d.version > 0 && d.updatedAt == request.time
+        && (record ? d.category in ['공연','방송','일상','굿즈'] : d.category in ['자유 이야기','공연 후기']);
+    }
+    function validDate(value) {
+      let parts = value.split('-');
+      let year = int(parts[0]);
+      let month = int(parts[1]);
+      let day = int(parts[2]);
+      let leap = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+      let days = month == 2 ? (leap ? 29 : 28) : (month in [4,6,9,11] ? 30 : 31);
+      return value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$') && day <= days;
+    }
+    match /records/{id} {
+      allow get: if signed() && (resource == null || resource.data.ownerId == request.auth.uid);
+      allow list: if signed() && resource.data.ownerId == request.auth.uid;
+      allow create: if member() && owner(request.resource.data.ownerId)
+        && request.resource.data.keys().hasOnly(['ownerId','title','body','artistId','category','media','version','createdAt','updatedAt','date'])
+        && content(request.resource.data, true) && request.resource.data.version == 1 && request.resource.data.createdAt == request.time
+        && request.resource.data.date is string && validDate(request.resource.data.date);
+      allow update: if member() && owner(resource.data.ownerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','artistId','category','date','updatedAt','version'])
+        && content(request.resource.data, true) && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.date is string && validDate(request.resource.data.date);
+      allow delete: if owner(resource.data.ownerId);
+    }
+    match /posts/{pid} {
+      allow get: if (resource == null && signed()) || resource.data.hidden == false || owner(resource.data.ownerId);
+      allow list: if resource.data.hidden == false || owner(resource.data.ownerId);
+      allow create: if member() && owner(request.resource.data.ownerId)
+        && request.resource.data.keys().hasOnly(['ownerId','title','body','artistId','category','media','version','createdAt','updatedAt','hidden'])
+        && content(request.resource.data, false) && request.resource.data.version == 1
+        && request.resource.data.createdAt == request.time && request.resource.data.hidden == false;
+      allow update: if owner(resource.data.ownerId) && resource.data.hidden == false
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','body','artistId','category','updatedAt','version','hidden'])
+        && request.resource.data.version == resource.data.version + 1 && request.resource.data.updatedAt == request.time
+        && (request.resource.data.hidden == true
+          ? request.resource.data.title == '삭제된 게시글' && request.resource.data.body == '삭제된 내용'
+          : member() && content(request.resource.data, false));
+      // Posts use tombstones so orphaned comments/likes cannot become publicly accessible.
+      allow delete: if false;
+      match /comments/{cid} {
+        allow get: if (resource == null && member() && publicPost(pid)) || (publicPost(pid) && resource.data.hidden == false);
+        allow list: if publicPost(pid) && resource.data.hidden == false;
+        allow create: if member() && publicPost(pid) && unblocked(get(/databases/$(database)/documents/posts/$(pid)).data.ownerId)
+          && request.resource.data.keys().hasOnly(['ownerId','body','hidden','createdAt'])
+          && owner(request.resource.data.ownerId) && text(request.resource.data.body,1,500)
+          && request.resource.data.hidden == false && request.resource.data.createdAt == request.time;
+        allow delete: if owner(resource.data.ownerId);
+      }
+      match /likes/{uid} {
+        allow read: if publicPost(pid);
+        allow create: if member() && owner(uid) && publicPost(pid)
+          && unblocked(get(/databases/$(database)/documents/posts/$(pid)).data.ownerId)
+          && request.resource.data.keys().hasOnly(['ownerId','createdAt'])
+          && request.resource.data.ownerId == uid && request.resource.data.createdAt == request.time;
+        allow delete: if owner(uid);
+      }
+    }
+    // Owner-scoped collection-group queries are used to remove one's reactions on account deletion.
+    match /{path=**}/comments/{id} { allow read, delete: if signed() && resource.data.ownerId == request.auth.uid; }
+    match /{path=**}/likes/{id} { allow read, delete: if signed() && resource.data.ownerId == request.auth.uid; }
+    match /reports/{id} {
+      allow get: if signed() && (resource == null || resource.data.reporterId == request.auth.uid);
+      allow create: if member() && request.resource.data.keys().hasOnly(['reporterId','targetType','targetId','postId','reason','detail','status','createdAt'])
+        && owner(request.resource.data.reporterId) && request.resource.data.targetType in ['post','comment']
+        && request.resource.data.targetId is string && publicPost(request.resource.data.postId)
+        && (request.resource.data.targetType == 'post'
+          ? request.resource.data.targetId == request.resource.data.postId && get(/databases/$(database)/documents/posts/$(request.resource.data.postId)).data.ownerId != request.auth.uid
+          : exists(/databases/$(database)/documents/posts/$(request.resource.data.postId)/comments/$(request.resource.data.targetId)) && get(/databases/$(database)/documents/posts/$(request.resource.data.postId)/comments/$(request.resource.data.targetId)).data.ownerId != request.auth.uid)
+        && request.resource.data.reason in ['스팸','욕설','개인정보','권리침해','기타'] && text(request.resource.data.detail,0,500)
+        && request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time;
+    }
+    // Spark: device tokens, reminder queues, outbox and Storage writes are not enabled.
+    match /{document=**} { allow read, write: if false; }
+  }
+}

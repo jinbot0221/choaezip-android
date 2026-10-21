@@ -7,8 +7,6 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.functions.FirebaseFunctions
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,8 +36,7 @@ class ChoaezipApplication : Application() {
 object Backend {
     lateinit var context: Application
     lateinit var auth: FirebaseAuth
-    lateinit var functions: FirebaseFunctions
-    lateinit var storage: FirebaseStorage
+    lateinit var firestore: com.google.firebase.firestore.FirebaseFirestore
     var configured = false
     fun init(context: Application) = FirebaseTrace.sync("firebase.init") {
         this.context = context
@@ -52,24 +49,24 @@ object Backend {
         checkNotNull(app) { "Firebase initialization failed: missing app configuration" }
         val webClient = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
         val playServices = runCatching { context.packageManager.getPackageInfo("com.google.android.gms", 0).versionName }.getOrNull()
-        FirebaseTrace.event("firebase.config", "INFO", "project=${app.options.projectId} package=${context.packageName} appName=${app.name} emulator=${BuildConfig.USE_EMULATORS} apiKeyPresent=${app.options.apiKey.isNotBlank()} webClientPresent=${webClient != 0} senderIdPresent=${!app.options.gcmSenderId.isNullOrBlank()} bucketPresent=${!app.options.storageBucket.isNullOrBlank()} playServicesVersion=${playServices ?: "missing"} functionsRegion=asia-northeast3")
+        FirebaseTrace.event("firebase.config", "INFO", "project=${app.options.projectId} package=${context.packageName} appName=${app.name} emulator=${BuildConfig.USE_EMULATORS} apiKeyPresent=${app.options.apiKey.isNotBlank()} webClientPresent=${webClient != 0} senderIdPresent=${!app.options.gcmSenderId.isNullOrBlank()} bucketPresent=${!app.options.storageBucket.isNullOrBlank()} playServicesVersion=${playServices ?: "missing"} backend=firestore-direct plan=Spark")
         auth = FirebaseAuth.getInstance(app)
-        functions = FirebaseFunctions.getInstance(app, "asia-northeast3")
-        storage = FirebaseStorage.getInstance(app)
+        firestore = com.google.firebase.firestore.FirebaseFirestore.getInstance(app)
+        firestore.firestoreSettings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
+            .setLocalCacheSettings(com.google.firebase.firestore.MemoryCacheSettings.newBuilder().build()).build()
         if (BuildConfig.USE_EMULATORS) {
             auth.useEmulator(BuildConfig.EMULATOR_HOST, 9099)
-            functions.useEmulator(BuildConfig.EMULATOR_HOST, 5001)
-            storage.useEmulator(BuildConfig.EMULATOR_HOST, 9199)
+            firestore.useEmulator(BuildConfig.EMULATOR_HOST, 8080)
         }
         configured = true
     }
     @Suppress("UNCHECKED_CAST")
     suspend fun call(action: String, vararg args: Pair<String, Any?>): Doc {
         check(configured) { "Firebase 설정이 필요해요. google-services.json을 확인해 주세요." }
-        return FirebaseTrace.span("functions.$action") {
-            functions.getHttpsCallable("api").call(mapOf("action" to action, *args)).await().data as? Doc ?: emptyMap()
-        }
+        return FirebaseTrace.span("firestore.$action") { SparkRepository.call(action, mapOf(*args)) }
     }
+    // Spark: Cloud Storage uploads disabled; original implementation retained below.
+/*
     suspend fun upload(uri: Uri, purpose: String): String {
         val uid = auth.currentUser?.uid ?: error("로그인이 필요해요.")
         val resolver = context.contentResolver
@@ -97,6 +94,7 @@ object Backend {
         FirebaseTrace.span("storage.upload") { storage.reference.child(path).putBytes(bytes, metadata).await() }
         return path
     }
+*/
     suspend fun google(token: String) = FirebaseTrace.span("auth.google.firebase") {
         auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
         Unit

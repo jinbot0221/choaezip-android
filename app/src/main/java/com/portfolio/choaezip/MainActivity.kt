@@ -94,7 +94,7 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
     LaunchedEffect(vm.message) { vm.message?.let { snackbar.showSnackbar(it); vm.message = null } }
     BackHandler(enabled=vm.route.screen!="home") { if(vm.route.screen=="completeSignup") vm.cancelSocial() else vm.back() }
     Scaffold(
-        topBar = { TopAppBar(title={ Text(titles[vm.route.screen] ?: "최애.zip", fontWeight=FontWeight.Bold) }, navigationIcon={ if(!root) IconButton(onClick={ if(vm.route.screen=="completeSignup") vm.cancelSocial() else vm.back() }) { Icon(Icons.Outlined.ArrowBack,"뒤로") } }, actions={ if(root) IconButton(onClick={ vm.requireLogin { vm.navigate("notifications") } }) { Icon(Icons.Outlined.Notifications,"알림함") } }) },
+        topBar = { TopAppBar(title={ Text(titles[vm.route.screen] ?: "최애.zip", fontWeight=FontWeight.Bold) }, navigationIcon={ if(!root) IconButton(onClick={ if(vm.route.screen=="completeSignup") vm.cancelSocial() else vm.back() }) { Icon(Icons.Outlined.ArrowBack,"뒤로") } }, actions={ if(root) IconButton(onClick={ vm.navigate("pushTest") }) { Icon(Icons.Outlined.Notifications,"알림함") } }) },
         bottomBar = { if(root) NavigationBar(containerColor=Color.White) {
             listOf(Triple("home","홈",Icons.Outlined.Home),Triple("calendar","일정",Icons.Outlined.CalendarMonth),Triple("records","기록",Icons.Outlined.FavoriteBorder),Triple("lounge","라운지",Icons.Outlined.Forum),Triple("my","마이",Icons.Outlined.PersonOutline)).forEach { (route,label,icon) -> NavigationBarItem(selected=vm.route.screen==route,onClick={vm.authorMe=false; vm.navigate(route)},icon={Icon(icon,label)},label={Text(label)}) }
         } }, snackbarHost={ SnackbarHost(snackbar) }
@@ -226,11 +226,14 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
     val url=s.str("sourceUrl")
     if(url.startsWith("https://")) MenuRow("공식 출처 확인",s.str("sourceName")){context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(url)))}
     if(s.num("updatedAt")>0) Caption("수정 · ${dateTime(s.num("updatedAt"))}")
+    // Spark: server automatic reminder UI disabled.
+/*
     val eligible=s.str("status")=="예정"&&s.num("startAt")>System.currentTimeMillis()+1800000
     Caption("일정 시작 30분 전에 한 번 알려드려요.")
     Primary(if(s.bool("reminded")) "알림 신청 해제" else if(eligible) "시작 알림 신청" else "지금은 알림 신청이 어려워요",!vm.busy&&(eligible||s.bool("reminded"))) {
         vm.requireLogin { if(!s.bool("reminded")&&Build.VERSION.SDK_INT>=33) permission.launch(Manifest.permission.POST_NOTIFICATIONS); vm.reminder(!s.bool("reminded")) }
     }
+*/
 }
 @Composable fun Guest(vm: AppViewModel, title: String) { EmptyState(title,"로그인하면 나만의 최애 공간이 열려요.");Primary("로그인하기"){vm.navigate("login")} }
 @Composable fun Records(vm: AppViewModel) {
@@ -284,31 +287,37 @@ private val titles = mapOf("home" to "최애.zip", "calendar" to "일정", "reco
     var body by rememberSaveable {mutableStateOf(draft.str("body",initial.str("body")))}
     var date by rememberSaveable {mutableStateOf(draft.str("date",initial.str("date",LocalDate.now(Seoul).toString())))}
     var category by rememberSaveable {mutableStateOf(draft.str("category",initial.str("category",if(record)"일상" else "자유 이야기")))}
-    var artist by rememberSaveable {mutableStateOf(draft.str("artistId",initial.str("artistId",vm.artistId)))}
-    var photos by remember {mutableStateOf<List<Uri>>(emptyList())};var existing by remember{mutableStateOf(initial.strings("media"))}
+    var artist by rememberSaveable {mutableStateOf(draft.str("artistId",initial.str("artistId",vm.artistId.ifBlank { "general" })))}
+    // Spark: var photos / existing media disabled (no Storage usage).
+    // var photos by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val requestKey=rememberSaveable {draft.str("requestKey").ifBlank {UUID.randomUUID().toString()}}
     fun saveDraft(){vm.saveDraft(mapOf("title" to title,"body" to body,"date" to date,"category" to category,"artistId" to artist,"requestKey" to requestKey))}
-    val picker=rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(4)){selected->photos=(photos+selected).distinct().take(4-existing.size);saveDraft()}
+    // Spark: photo picker disabled. Restore only together with a reviewed storage backend.
     Caption(if(record) "나만 보는 기록이에요. 마음껏 추억을 남겨주세요." else "누구나 볼 수 있는 글이에요. 직접 만들거나 허락받은 콘텐츠만 올려주세요.")
     Field(title,"제목 (2~${if(record)50 else 80}자)",{title=it;saveDraft()})
     Caption("아티스트")
+    Row(Modifier.fillMaxWidth().clickable{artist="general";saveDraft()},verticalAlignment=Alignment.CenterVertically){RadioButton(artist=="general",onClick={artist="general";saveDraft()});Text("아티스트 미지정")}
     vm.artists.forEach { a -> Row(Modifier.fillMaxWidth().clickable{artist=a.str("id");saveDraft()},verticalAlignment=Alignment.CenterVertically){RadioButton(artist==a.str("id"),onClick={artist=a.str("id");saveDraft()});Text(a.str("name"))} }
     if(record) Field(date,"기록 날짜 · YYYY-MM-DD",{date=it;saveDraft()})
     Chips(if(record)listOf("공연","방송","일상","굿즈") else listOf("자유 이야기","공연 후기"),category){category=it;saveDraft()}
     Field(body,"${if(record)"오늘의 순간" else "이야기"} (최대 ${if(record)2000 else 3000}자)",{body=it;saveDraft()},multiline=true)
+    // Spark: photo upload controls disabled.
+/*
     Text("사진 ${existing.size+photos.size}/4",fontWeight=FontWeight.Bold)
     existing.forEachIndexed { index,path -> MenuRow("기존 사진 ${index+1} 제거"){existing=existing-path;saveDraft()} }
     photos.forEach { uri -> Row(verticalAlignment=Alignment.CenterVertically){AsyncImage(uri,"선택 사진",Modifier.size(70.dp).clip(RoundedCornerShape(12.dp)));TextButton(onClick={photos=photos-uri;saveDraft()}){Text("제거")}} }
     OutlinedButton(onClick={picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=photos.size+existing.size<4){Icon(Icons.Outlined.AddPhotoAlternate,null);Text(" 사진 선택")}
     Caption("JPEG · PNG · WebP / 한 장당 최대 10MB. 사진은 임시 보관되지 않아요.")
-    Primary("저장하기",!vm.busy&&artist.isNotBlank()){vm.saveContent(record,title,body,date,category,artist,photos,existing,requestKey,initial.num("version"))}
+*/
+    Primary("저장하기",!vm.busy&&artist.isNotBlank()){vm.saveContent(record,title,body,date,category,artist,emptyList(),emptyList(),requestKey,initial.num("version"))}
 }
 @Composable fun MyScreen(vm: AppViewModel) {
     MenuRow("알림 수신 확인"){vm.navigate("pushTest")}
     if(!vm.signedIn){Guest(vm,"좋아하는 마음의 보관함");MenuRow("최애 선택"){vm.navigate("artists")};return}
     Panel {Text("✦",fontSize=32.sp,color=Purple);Heading(vm.nickname);Caption(vm.me?.str("bio")?:"");Text(vm.favoriteName,color=Purple)}
     if(vm.me?.bool("restricted")==true) Panel(color=MaterialTheme.colorScheme.errorContainer){Text("일부 기능 이용이 제한되어 있어요.");Caption(vm.me?.str("restrictionReason")?:"문의는 운영자에게 연락해 주세요.")}
-    MenuRow("프로필 수정"){vm.navigate("profile")};MenuRow("최애 변경"){vm.navigate("artists")};MenuRow("내 기록"){vm.navigate("records")};MenuRow("내 게시글"){vm.authorMe=true;vm.navigate("lounge")};MenuRow("알림함"){vm.navigate("notifications")};MenuRow("알림 설정"){vm.navigate("preferences")};MenuRow("차단 사용자"){vm.navigate("blocks")};MenuRow("로그아웃"){vm.logout()};MenuRow("계정 탈퇴"){vm.navigate("deleteAccount")}
+    MenuRow("프로필 수정"){vm.navigate("profile")};MenuRow("최애 변경"){vm.navigate("artists")};MenuRow("내 기록"){vm.navigate("records")};MenuRow("내 게시글"){vm.authorMe=true;vm.navigate("lounge")} // Spark: automatic notification inbox disabled.
+    MenuRow("알림 설정"){vm.navigate("preferences")};MenuRow("차단 사용자"){vm.navigate("blocks")};MenuRow("로그아웃"){vm.logout()};MenuRow("계정 탈퇴"){vm.navigate("deleteAccount")}
 }
 private suspend fun googleCredential(context: android.content.Context): GoogleIdTokenCredential = FirebaseTrace.span("auth.google.credential") {
     require(!BuildConfig.USE_EMULATORS){"Google 로그인은 실제 Firebase 설정과 SHA 인증서 등록 후 사용할 수 있어요. Emulator에서는 이메일로 가입해 주세요."}
@@ -360,7 +369,7 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
     if(screen in listOf("login","signup","newPassword")) Field(password,"비밀번호${if(screen!="login")" (8~64자)" else ""}",{password=it},password=true,error=errors["password"])
     if(screen in listOf("signup","newPassword")) Field(confirm,"비밀번호 확인",{confirm=it},password=true,error=errors["confirm"])
     if(screen in listOf("signup","completeSignup")) {
-        Panel {Text("서비스 이용약관 · 개인정보 처리방침",fontWeight=FontWeight.Bold);Caption("기록은 비공개, 라운지의 닉네임과 글은 공개됩니다. 서비스 제공을 위해 계정·프로필·콘텐츠를 Firebase에 저장합니다. 탈퇴 시 데이터 삭제를 요청할 수 있습니다.");Caption("개발용 약관 요약입니다. 실제 서비스 출시 전 운영자의 약관 및 개인정보 처리방침 확정이 필요합니다.")}
+        Panel {Text("서비스 이용약관 · 개인정보 처리방침",fontWeight=FontWeight.Bold);Caption("기록은 비공개, 라운지의 닉네임과 글은 공개됩니다. 서비스 제공을 위해 계정·프로필·텍스트 콘텐츠를 Firebase에 저장합니다. 탈퇴 시 데이터 삭제를 요청할 수 있습니다.");Caption("개발용 약관 요약입니다. 실제 서비스 출시 전 운영자의 약관 및 개인정보 처리방침 확정이 필요합니다.")}
         Row(Modifier.fillMaxWidth().toggleable(value=agree,role=Role.Checkbox,onValueChange={agree=it}),verticalAlignment=Alignment.CenterVertically){Checkbox(agree,null);Text("[필수] 이용약관 및 개인정보 처리에 동의")}
         errors["agree"]?.let { Text(it,color=MaterialTheme.colorScheme.error) }
     }
@@ -393,10 +402,14 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
     val context=LocalContext.current
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()){vm.syncDevice()}
     val allowed=Build.VERSION.SDK_INT<33||context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==android.content.pm.PackageManager.PERMISSION_GRANTED
-    Panel { Text(if(allowed)"기기 알림이 허용되어 있어요" else "기기 알림이 꺼져 있어요",fontWeight=FontWeight.Bold);Caption("기기 권한과 앱 알림 설정은 별개예요. 알림함은 권한과 관계없이 제공됩니다.")
+    Panel { Text(if(allowed)"기기 알림이 허용되어 있어요" else "기기 알림이 꺼져 있어요",fontWeight=FontWeight.Bold);Caption("알림 권한을 허용하면 Firebase 콘솔에서 보낸 알림을 받을 수 있어요.")
         TextButton(onClick={if(Build.VERSION.SDK_INT>=33&&!allowed)permission.launch(Manifest.permission.POST_NOTIFICATIONS) else context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))}){Text("기기 알림 설정")}}
+    // Spark: automatic push preferences disabled.
+/*
     listOf("schedule" to "일정 안내","comment" to "댓글","like" to "좋아요","memory" to "기록 회고 (별도 동의)").forEach{(key,label)->Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(label,Modifier.weight(1f));Switch(checked=vm.data.bool(key),onCheckedChange={vm.preference(key,it)},enabled=!vm.busy&&!vm.loading)}}
     Caption("댓글·좋아요·회고 푸시는 한국 시각 22:00~08:00에 보내지 않아요.")
+*/
+    Caption("Firebase 콘솔에서 보낸 알림은 기기 알림 권한에 따라 표시됩니다.")
 }
 @Composable fun Profile(vm: AppViewModel) {
     if(vm.loading)return
@@ -423,7 +436,7 @@ private suspend fun googleCredential(context: android.content.Context): GoogleId
 @Composable fun DeleteAccount(vm: AppViewModel) {
     val context=LocalContext.current;var password by remember{mutableStateOf("")};var agree by remember{mutableStateOf(false)};var confirm by remember{mutableStateOf(false)}
     Heading("탈퇴 전에 확인해 주세요")
-    Panel(color=Color(0xFFFBECEF)){Text("기록, 사진, 게시글, 댓글, 반응, 알림이 삭제돼요.",fontWeight=FontWeight.Bold);Text("탈퇴 후에는 복구할 수 없습니다. 본인 확인 후 계정이 즉시 차단되고 삭제 작업이 진행됩니다.")}
+    Panel(color=Color(0xFFFBECEF)){Text("개인 기록·프로필·내 댓글과 좋아요를 삭제하고, 내 게시글 본문을 지워 비공개 처리해요.",fontWeight=FontWeight.Bold);Text("탈퇴 후에는 복구할 수 없습니다. 본인 확인 후 데이터 정리를 완료하고 로그인 계정을 삭제합니다. 연결 오류가 나면 앱을 종료하지 말고 다시 시도해 주세요.")}
     val google=Backend.auth.currentUser?.providerData?.any{it.providerId=="google.com"}==true
     if(!google)Field(password,"본인 확인 · 현재 비밀번호",{password=it},password=true)
     Row(verticalAlignment=Alignment.CenterVertically){Checkbox(agree,{agree=it});Text("안내를 확인했으며 탈퇴에 동의합니다.")}

@@ -259,30 +259,20 @@
   ],
   "fieldOverrides": [
     {
-      "collectionGroup": "reminders",
-      "fieldPath": "active",
-      "indexes": [
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION"
-        },
-        {
-          "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
-        }
-      ]
-    },
-    {
       "collectionGroup": "comments",
       "fieldPath": "ownerId",
       "indexes": [
         {
           "order": "ASCENDING",
-          "queryScope": "COLLECTION"
+          "queryScope": "COLLECTION_GROUP"
         },
         {
           "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
         }
       ]
     },
@@ -292,11 +282,15 @@
       "indexes": [
         {
           "order": "ASCENDING",
-          "queryScope": "COLLECTION"
+          "queryScope": "COLLECTION_GROUP"
         },
         {
           "order": "ASCENDING",
-          "queryScope": "COLLECTION_GROUP"
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
         }
       ]
     }

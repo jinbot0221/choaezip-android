@@ -11,7 +11,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuthException
-import com.google.firebase.functions.FirebaseFunctionsException
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -96,7 +95,7 @@ class AppViewModel : ViewModel() {
                     "post", "editPost" -> if (current.id.isNotEmpty()) Backend.call("post", "id" to current.id) else emptyMap()
                     "my", "profile" -> if (signedIn) Backend.call("me") else emptyMap()
                     "notifications" -> Backend.call("notifications", "cursor" to if (append) cursor else null)
-                    "preferences" -> Backend.call("preferences")
+                    "preferences" -> emptyMap()
                     "blocks" -> Backend.call("blocks")
                     else -> emptyMap()
                 }
@@ -170,7 +169,7 @@ class AppViewModel : ViewModel() {
         val result = runCatching { FirebaseTrace.span("auth.profile.load") { Backend.call("me") } }
         result.onSuccess {
             FirebaseTrace.event("auth.navigation", "OK", "destination=authenticated"); applyProfile(it); clearAuthRoutes(); syncDevice(); message = "로그인했어요. 원하는 기능을 다시 선택해 주세요."
-        }.onFailure { if(it is FirebaseFunctionsException && it.code==FirebaseFunctionsException.Code.PERMISSION_DENIED) { FirebaseTrace.event("auth.navigation", "INFO", "destination=completeSignup"); navigate("completeSignup") } else throw it }
+        }.onFailure { if(it is SignupRequiredException) { FirebaseTrace.event("auth.navigation", "INFO", "destination=completeSignup"); navigate("completeSignup") } else throw it }
     }
     private fun clearAuthRoutes() {
         pendingNickname = ""; pendingAgreement = false
@@ -192,14 +191,17 @@ class AppViewModel : ViewModel() {
         Backend.auth.verifyPasswordResetCode(code).await()
         Backend.auth.confirmPasswordReset(code, password).await(); navigate("login"); message = "비밀번호를 변경했어요."
     }
+    // Spark: scheduled reminder requests disabled.
+/*
     fun reminder(enabled: Boolean) = work {
         Backend.call("reminder", "id" to route.id, "enabled" to enabled, "expectedVersion" to data.num("version")); syncDevice(); refresh()
     }
+*/
     fun saveContent(record: Boolean, title: String, body: String, date: String, category: String, artist: String, photos: List<Uri>, existing: List<String>, requestKey: String, version: Long) = work {
         Validation.content(title, body, record)?.let { error(it) }
-        require(existing.size + photos.size <= 4) { "사진은 최대 4장이에요." }
-        val paths = existing.toMutableList()
-        for(uri in photos) paths += Backend.upload(uri, if(record) "record" else "post")
+        // Spark: no photo selection/upload; never issue Storage requests.
+        require(photos.isEmpty() && existing.isEmpty()) { "사진 업로드는 비활성화되어 있어요." }
+        val paths = emptyList<String>()
         val result = Backend.call(if(record) "saveRecord" else "savePost", "id" to route.id.ifBlank { null }, "title" to title, "body" to body, "date" to date, "category" to category, "artistId" to artist, "media" to paths, "requestKey" to requestKey, "expectedVersion" to version)
         clearDraft(); dirty = false; backNow(); navigate(if(record) "record" else "post", result.str("id")); message = "저장했어요."
     }
@@ -241,13 +243,16 @@ class AppViewModel : ViewModel() {
         if (googleReauth != null) googleReauth() else u.reauthenticate(EmailAuthProvider.getCredential(u.email ?: "", password)).await()
         u.getIdToken(true).await()
         Backend.call("deleteAccount", "confirmation" to true)
-        Backend.auth.signOut(); clearPrivate(); navigate("home"); message = "탈퇴가 접수됐어요. 계정 접근이 차단되고 데이터 삭제가 진행됩니다."
+        Backend.auth.signOut(); clearPrivate(); navigate("home"); message = "탈퇴했어요. 개인 기록과 프로필이 삭제되고 게시글이 비공개 처리됐어요."
     }
     private fun draftKey() = "draft_${Backend.auth.currentUser?.uid}_${route.screen}_${route.id}"
     fun draft(): Doc = runCatching { val j=JSONObject(prefs.getString(draftKey(), "{}") ?: "{}"); j.keys().asSequence().associateWith { j.get(it) } }.getOrDefault(emptyMap())
     fun saveDraft(fields: Doc) { if(signedIn) { prefs.edit().putString(draftKey(), JSONObject(fields).toString()).apply(); dirty = true } }
     private fun clearDraft() { prefs.edit().remove(draftKey()).apply() }
     fun cancelSocial() { if(Backend.configured && me==null) Backend.auth.signOut(); backNow() }
+    // Spark: no server device registration or automatic push dispatch.
+    fun syncDevice() = Unit
+/*
     fun syncDevice() {
         if (BuildConfig.USE_EMULATORS || !signedIn) return
         viewModelScope.launch {
@@ -258,6 +263,7 @@ class AppViewModel : ViewModel() {
             }.onFailure { if(it is Exception) FirebaseTrace.failure("fcm.device.register", it) }
         }
     }
+*/
     private var searchJob: Job? = null
     fun searchArtists(q: String) {
         searchJob?.cancel(); searchJob = viewModelScope.launch { delay(300); runCatching { Backend.call("artists", "q" to q) }.onSuccess { artistResults=it.rows() }.onFailure { error=authErrorMessage(it as Exception) } }

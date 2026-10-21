@@ -1,7 +1,6 @@
 package com.portfolio.choaezip
 
 import com.google.firebase.auth.FirebaseAuthException
-import com.google.firebase.functions.FirebaseFunctionsException
 
 internal fun authErrorMessage(e: Exception): String = when(e) {
         is com.google.firebase.FirebaseNetworkException -> "서버에 연결할 수 없어요. 인터넷 연결을 확인하고 다시 시도해 주세요."
@@ -16,17 +15,16 @@ internal fun authErrorMessage(e: Exception): String = when(e) {
             "ERROR_INVALID_CREDENTIAL", "ERROR_INVALID_IDP_RESPONSE" -> "인증 정보가 올바르지 않아요. 이메일 비밀번호 또는 Google 로그인 설정(SHA 인증서와 클라이언트 ID)을 확인해 주세요."
             else -> "인증에 실패했어요 (${e.errorCode}). 입력 정보와 Firebase 로그인 설정을 확인해 주세요."
         }
-        is FirebaseFunctionsException -> when(e.code) {
-            FirebaseFunctionsException.Code.NOT_FOUND -> "요청한 정보를 찾을 수 없어요."
-            FirebaseFunctionsException.Code.UNAUTHENTICATED -> "로그인이 필요해요. 다시 로그인해 주세요."
-            FirebaseFunctionsException.Code.UNAVAILABLE -> "서버에 연결할 수 없어요. 네트워크와 Firebase 실행 상태를 확인해 주세요."
-            FirebaseFunctionsException.Code.ABORTED -> "다른 곳에서 변경됐어요. 입력은 보관되므로 최신 내용을 확인한 뒤 다시 시도해 주세요."
+        is com.google.firebase.firestore.FirebaseFirestoreException -> when(e.code) {
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED -> "Firestore 접근이 거부됐어요. 최신 Spark 보안 규칙을 배포하고 다시 시도해 주세요."
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION -> "Firestore 데이터베이스 또는 목록 인덱스 설정이 필요해요. 최신 firestore 인덱스를 배포해 주세요."
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.NOT_FOUND -> "요청한 정보를 찾을 수 없어요."
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAUTHENTICATED -> "로그인이 필요해요. 다시 로그인해 주세요."
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.UNAVAILABLE -> "서버에 연결할 수 없어요. 네트워크와 Firestore 설정과 보안 규칙을 확인해 주세요."
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.ABORTED -> "다른 곳에서 변경됐어요. 입력은 보관되므로 최신 내용을 확인한 뒤 다시 시도해 주세요."
             else -> e.message ?: "요청을 처리하지 못했어요."
         }
         else -> e.localizedMessage ?: "처리 중 문제가 생겼어요. 다시 시도해 주세요."
     }
 
-internal fun profileErrorMessage(e: Exception): String =
-    if(e is FirebaseFunctionsException && e.code == FirebaseFunctionsException.Code.NOT_FOUND)
-        "Firebase 프로젝트에 서울 리전의 api Functions가 배포되어 있는지 확인해 주세요."
-    else authErrorMessage(e)
+internal fun profileErrorMessage(e: Exception): String = authErrorMessage(e)

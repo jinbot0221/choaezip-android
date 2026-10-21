@@ -1,174 +1,118 @@
-# 최애.zip
+# 최애.zip Android — Firebase Spark
 
-화면정의서 CZ01~CZ23을 기반으로 만든 Kotlin / Jetpack Compose Android 앱입니다. Firebase Authentication, Cloud Functions, Firestore, Storage, FCM을 사용합니다. 카카오·Apple 로그인은 포함하지 않습니다.
+Kotlin·Jetpack Compose Android 앱입니다. 패키지는 **`com.portfolio.choaezip`**입니다. Google·이메일 로그인, 프로필, 일정 조회, 비공개 기록, 팬라운지 글·댓글·좋아요, 차단·신고를 Firebase Auth와 Cloud Firestore로 구현했습니다. Kakao·Apple 로그인은 포함하지 않습니다.
 
-- 앱 이름: **최애.zip**
-- 패키지 / applicationId: **`com.portfolio.choaezip`**
-- Android 8.0(API 26) 이상, compile/target SDK 36
-- Kotlin 2.1.21, AGP 8.11.1, Gradle 8.13, JDK 21, Node 22
-- 고객 화면은 한국어, 일정·예약 기준 시간대는 Asia/Seoul
+현재 앱은 **Cloud Functions를 호출하지 않습니다.** Spark 무료 할당량 내에서 사용할 수 있도록 전환했습니다. 사진 업로드와 일정·댓글·좋아요·회고의 서버 자동 알림은 주석 처리하고 화면에서 제외했습니다. **Firebase 콘솔 FCM 테스트는 유지**합니다.
 
-## 실제 실행 화면
+## 실제 프로젝트 연결
 
-2026-10-21에 Android 10(AOSP) 에뮬레이터에서 디버그 APK를 실행해 캡처했습니다. 해상도는 780 × 1688px(390 × 844dp)입니다. Firebase Emulator에 연결했으며 LUMI, 닉네임, 기록과 글은 가상의 시연 데이터입니다. 이전 버전 캡처이며, 현재 버전에서는 상단 개발 환경 문구를 제거했습니다.
-
-| 홈 | 일정 | 비공개 기록 |
-|---|---|---|
-| <img src="docs/screenshots/home.png" width="240" alt="실행 화면: 홈" /> | <img src="docs/screenshots/calendar.png" width="240" alt="실행 화면: 월별 일정" /> | <img src="docs/screenshots/records.png" width="240" alt="실행 화면: 로그인한 계정의 비공개 기록" /> |
-
-| 팬라운지 | 마이 · 로그인 상태 | 마이 · 게스트 |
-|---|---|---|
-| <img src="docs/screenshots/lounge.png" width="240" alt="실행 화면: 팬라운지" /> | <img src="docs/screenshots/my.png" width="240" alt="실행 화면: 마이" /> | <img src="docs/screenshots/my-guest.png" width="240" alt="실행 화면: 게스트 로그인 안내" /> |
-
-일정과 목록은 스크롤해서 계속 볼 수 있습니다. 이미지 원본은 [docs/screenshots](docs/screenshots)에 있습니다.
-
-## 개발 실행
-
-Android Studio에서 프로젝트 루트를 열고 Android SDK 36 / Build Tools 35.0.0 및 JDK 21을 준비합니다.
+1. Firebase 프로젝트 `choaezip`에 Android 앱 `com.portfolio.choaezip`를 등록합니다.
+2. 제공받은 설정 파일을 **`app/google-services.json`**에 넣습니다. Git 제외 파일이므로 GitHub에서 새로 받은 폴더에도 별도로 넣어야 합니다. 서비스 계정 JSON을 넣지 마세요.
+3. Authentication → 로그인 방법에서 **이메일/비밀번호와 Google**을 활성화합니다. Android Studio에서 `./gradlew signingReport`로 실제 APK 서명의 SHA-1/SHA-256을 확인하여 Firebase Android 앱에 등록합니다. 설정을 변경했다면 JSON을 다시 받습니다.
+4. Firestore Database에서 **기본 `(default)` 데이터베이스**를 생성합니다. 미국에 만들어도 앱을 바꿀 필요가 없습니다. 테스트 모드 전체 공개 규칙 대신 이 저장소의 규칙을 사용하세요.
+5. 최신 코드를 받은 프로젝트 폴더에서 Firestore 규칙·인덱스만 배포합니다.
 
 ```bash
 npm ci
-npm --prefix functions ci
+npx firebase login
+npx firebase deploy --project choaezip --only firestore
+```
+
+**Functions·Storage 배포와 Blaze 업그레이드는 필요하지 않습니다.** 새 규칙을 배포하지 않으면 이전의 직접 접근 차단 규칙 때문에 로그인 프로필/글 저장이 실패합니다. 인덱스 생성은 완료될 때까지 기다려 주세요. 이 클라우드에서 사용자 계정으로 실제 프로젝트에 배포하지는 않았습니다.
+
+```bash
+./gradlew assembleDebug
+```
+
+APK: `app/build/outputs/apk/debug/app-debug.apk`. 실제 Firebase가 기본이며, 설정 파일이 없으면 빌드를 중단합니다. 출시 APK는 별도 릴리스 서명이 필요합니다.
+
+## 데이터 저장 위치와 보안
+
+| 경로 | 저장 내용 / 접근 |
+| --- | --- |
+| Firebase Authentication | Google·이메일 로그인 계정 |
+| `users/{UID}` | 닉네임·소개·약관 동의·선호 아티스트. 본인만 읽기/수정 |
+| `publicProfiles/{UID}` | 공개 닉네임·소개만 저장. 개인정보/권한 필드를 추가할 수 없음 |
+| `posts/{글 ID}` | 공개 라운지 텍스트. 작성자만 수정·삭제 처리 |
+| `posts/{글 ID}/comments/{댓글 ID}` | 댓글. 작성자만 삭제 |
+| `posts/{글 ID}/likes/{UID}` | 계정별 좋아요. 하나만 생성 가능. 개수는 집계 조회 |
+| `records/{기록 ID}` | 비공개 기록. 소유자만 읽기/쓰기 |
+| `users/{UID}/blocks/{대상 UID}` | 차단. 목록은 본인만, 개별 관계는 당사자만 조회 |
+| `reports/{신고 ID}` | 신고 내용. 작성자 조회 및 최초 생성만 허용; 처리 상태는 앱에서 변경 불가 |
+| `artists/{아티스트 ID}`, `schedules/{일정 ID}` | 공개 조회. 일반 앱에서 쓰기 불가; 관리자가 콘솔에서 등록 |
+
+가입 시 비공개/공개 프로필을 원자적으로 생성합니다. 서버 시각과 소유자/필드/길이/버전을 보안 규칙으로 검증합니다. 게시글은 서버 저장이 확인된 뒤에만 성공으로 표시하며 같은 저장 요청 재시도는 중복 글을 생성하지 않습니다. 로그아웃·앱 종료 후에도 글과 기록은 유지되며 일반 게시글에 자동 만료를 적용하지 않습니다. 디스크 Firestore 캐시는 사용하지 않고 조회는 서버에서 수행합니다.
+
+차단한 계정의 글·댓글은 앱에서 걸러 표시하며 양방향 차단 관계의 새 댓글/좋아요는 규칙에서 거부합니다. 라운지는 원래 공개 공간이므로 차단이 공개 정보 자체를 비밀로 바꾸지는 않습니다. 신고는 콘솔에서 운영자가 검토합니다.
+
+탈퇴는 본인 재인증 후 개인 기록·프로필·본인 댓글·좋아요·차단 목록을 정리한 뒤 Auth 계정을 삭제합니다. 본인 게시글은 본문을 지우고 `hidden=true`로 바꿔 공개 접근을 막습니다. 다른 사용자의 반응이 남아도 부모 글이 숨겨지면 공개 조회가 차단됩니다. Spark에는 서버 정리 작업이 없으므로 연결 오류 시 앱에서 다시 시도해야 합니다. 기존 Blaze 버전에서 사용한 Storage 파일이나 별도 컬렉션은 자동으로 정리하지 않습니다.
+
+### 아티스트/일정 데이터
+
+빈 데이터베이스에서도 글·기록 작성에서 **아티스트 미지정**을 선택할 수 있습니다. 지정 아티스트가 필요하면 Firestore 콘솔의 `artists`에 실제 데이터로 문서를 등록합니다.
+
+```text
+artists/{아티스트 ID}
+  name: 표시 이름 (string)
+  active: true (boolean)
+  type: group 또는 member (string)
+```
+
+일정 문서는 `schedules/{일정 ID}`에 `artistId`, `title`, `body`, `location`, `type`(방송/컴백/공연/티켓), `status`(예정/취소/완료), `startAt`(epoch 밀리초 number), `updatedAt`(밀리초 number), `sourceName`, `sourceUrl`(HTTPS), `version`을 넣습니다. 앱은 서버에 실제 저장된 데이터만 보여줍니다. 아래 개발용 seed는 demo Emulator에만 가상 데이터를 만듭니다.
+
+## FCM 콘솔 테스트
+
+1. Google Play 서비스가 있는 기기에서 실제 Firebase 설정의 앱을 실행합니다.
+2. **마이 → 알림 수신 확인 → 알림 권한 설정**에서 허용합니다.
+3. **기기 토큰 가져오기 → 기기 토큰 복사**를 누릅니다. 로그인하지 않아도 됩니다.
+4. Firebase 콘솔의 **같은 프로젝트 `choaezip` → Messaging → 알림 메시지 작성 → 테스트 메시지 전송**에 토큰을 넣습니다.
+5. 먼저 앱을 보고 있는 상태에서 전송하여 확인한 뒤 홈 화면으로 나간 상태에서도 확인합니다. 강제 종료했다면 다시 앱을 실행하세요.
+
+전경에서는 앱이, 백그라운드에서는 FCM SDK가 notification 메시지를 표시합니다. 기본 채널은 `공지와 테스트 알림`입니다. 자동 data 알림 수신과 서버 토큰 등록은 주석 처리되어 있습니다. 콘솔 알림은 앱 내부 알림함에 저장하지 않습니다. FCM 토큰은 공개 게시하지 마세요. 재설치/갱신 후 다시 복사합니다. 이 테스트에는 Functions·Storage·Blaze가 필요하지 않습니다.
+
+## 로그와 오류 확인
+
+Android Studio Logcat에서 **`tag:ChoaezipFirebase`**로 검색합니다. debug 빌드에서만 기록합니다.
+
+- `firebase.config`: `backend=firestore-direct plan=Spark`, 프로젝트/패키지/Emulator 모드와 필요한 설정 존재 여부
+- `auth.google.credential` → `auth.google.firebase`: 계정 선택 → Firebase 인증
+- `auth.email.create`, `auth.email.login`: 이메일 가입·로그인
+- `auth.profile.load`, `firestore.me`, `firestore.completeSignup`: Firestore 프로필 조회·생성
+- `firestore.savePost`, `firestore.posts`: 라운지 저장·목록
+- `auth.signup.validation`, `auth.profile.validation`: 입력에서 실패한 필드 이름
+- `fcm.token`, `fcm.token.refresh`, `fcm.receive`, `fcm.display`: 발급·갱신·전경 수신·표시 요청
+
+`START` 이후 같은 request 번호의 `OK`/`FAIL`, 예외 종류와 SDK 코드를 확인합니다. 초기화 OK만으로 실제 네트워크 연결 성공을 뜻하지 않습니다. `PERMISSION_DENIED`는 새 규칙 배포 여부, `FAILED_PRECONDITION`은 데이터베이스/인덱스를 확인합니다. 이메일 계정 생성 후 프로필 저장만 실패하면 계정을 다시 만들지 않고 가입 완료 화면에서 재시도합니다. 닉네임은 2~20자, 비밀번호는 8~64자이며 필수 동의가 필요합니다.
+
+로그에는 이메일·비밀번호·UID·토큰·게시글·SDK 예외 메시지를 출력하지 않습니다. 실제 기기에서의 Google 로그인·FCM 전달은 해당 기기의 로그로 확인해야 합니다. 백그라운드 notification 메시지는 SDK가 처리하므로 앱 서비스의 수신 로그가 없을 수 있습니다.
+
+## 개발과 검증
+
+JDK 21, Android SDK 36 / Build Tools 35.0.0, Node.js 22 환경을 사용합니다. 이 클라우드에서는 매 셸에서 다음을 실행합니다.
+
+```bash
+source scripts/cloud-env.sh
+npm ci
 npm run emulators
 ```
 
-별도 터미널에서:
-
-```bash
-npm run seed
-./gradlew assembleDebug -PuseEmulators=true
-```
-
-Android 에뮬레이터에 `app/build/outputs/apk/debug/app-debug.apk`를 설치합니다. `-PuseEmulators=true`로 명시한 테스트 빌드는 개발용 `demo-choaezip` Firebase Emulator의 `10.0.2.2`에 연결합니다. **Firebase Emulator가 실행 중이어야 데이터와 이메일 가입이 동작합니다.** 가상 아티스트 LUMI와 예시 일정은 seed로만 등록합니다. 실제 데이터를 가장하는 오프라인 가짜 저장 동작은 없습니다.
-
-실제 Android 기기를 USB로 연결하는 경우:
-
-```bash
-adb reverse tcp:9099 tcp:9099
-adb reverse tcp:5001 tcp:5001
-adb reverse tcp:9199 tcp:9199
-./gradlew assembleDebug -PuseEmulators=true -PemulatorHost=127.0.0.1
-```
-
-## 실제 Firebase 연결
-
-1. Firebase 프로젝트를 생성하고 Android 앱 **`com.portfolio.choaezip`**를 등록합니다.
-2. `google-services.json`을 **`app/google-services.json`**에 넣습니다. 이 파일은 Git에서 제외됩니다. 서비스 계정 JSON이나 개인 키를 앱·저장소에 넣지 마세요.
-3. Authentication에서 Email/Password 및 Google을 활성화합니다. Google에는 앱 서명 인증서의 SHA-1/SHA-256을 등록하고 갱신된 JSON을 내려받습니다. Credential Manager는 JSON의 `default_web_client_id`를 사용합니다.
-4. Firestore와 Storage를 생성하고 Functions(서울 리전 `asia-northeast3`)와 Cloud Scheduler 사용을 위해 Blaze 요금제/필요한 API를 설정합니다. 비용이 발생할 수 있습니다.
-5. 프로젝트 소유자의 인증된 개발 환경에서 명시적으로 배포합니다. `.firebaserc`의 기본 demo 프로젝트를 운영 프로젝트로 착각하지 마세요.
-
-```bash
-npx firebase login
-npx firebase deploy --project YOUR_PROJECT_ID --only firestore,storage,functions
-./gradlew assembleDebug -PuseEmulators=false
-```
-
-운영용 APK는 다음과 같이 만듭니다. 릴리스 서명은 배포자의 안전한 서명 설정이 필요하며 개인 키는 포함하지 않습니다.
-
-```bash
-./gradlew assembleRelease -PuseEmulators=false
-```
-
-Firebase 콘솔의 실제 아티스트/일정 데이터가 있어야 고객 목록이 표시됩니다. 개발용 seed는 demo Emulator만 대상으로 합니다. 실제 프로젝트에 seed를 자동으로 올리지 않습니다.
-
-## 기능과 검증 범위
-
-- 게스트 홈·최애 검색·월 달력·일정 상세·라운지 탐색
-- 이메일 가입/로그인/비밀번호 재설정, Google Credential Manager 로그인/신규 가입 동의
-- 비공개 기록 작성·수정·삭제·계정별 로컬 초안, 공개 게시글·댓글·좋아요
-- Android Photo Picker, 최대 4장 / 장당 10MB / JPEG·PNG·WebP 검사
-- 프로필·알림함·알림 설정·신고·양방향 차단·재인증 후 탈퇴
-- Functions에서 소유권, 가입 완료, 제한 계정, 버전 경합, 중복 요청 검사
-- Firestore 직접 접근 차단, Storage 업로드 소유권/형식/크기 검사, 미디어 접근 검사 후 5분 URL
-- 일정 30분 전 알림, 일정 변경·취소, 댓글·좋아요·기록 회고·신고 결과 outbox/FCM 작업
-
-자세한 화면 대응과 차이점은 [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md), 배포·보안 설명은 [docs/FIREBASE.md](docs/FIREBASE.md)를 참고하세요.
+다른 터미널:
 
 ```bash
 ./gradlew -PuseEmulators=true assembleDebug testDebugUnitTest lintDebug
-node --test functions/test/policy.test.js
-npm test  # Auth, Firestore, Functions, Storage 실제 Emulator 통합 테스트
 ```
 
-`npm test`는 독립된 demo Emulator를 기동하므로 실행 중인 개발 Emulator와 포트가 겹치지 않게 종료 후 실행하세요. 테스트는 보안 규칙 우회, 타인 기록 접근, 이중 저장, 버전 경합, 차단, 알림 신청 경계, 사진 규칙, 탈퇴 등을 검사합니다. Google 공급자·실제 이메일 전달·실기기 FCM은 실제 Firebase 연결 후 검수해야 합니다.
+로컬 개발 Emulator는 명시적 `-PuseEmulators=true`일 때만 연결합니다. Android 가상 기기 주소는 `10.0.2.2`, Auth 9099 / Firestore 8080입니다. 실제 기기는 `adb reverse tcp:9099 tcp:9099`, `adb reverse tcp:8080 tcp:8080` 후 `-PemulatorHost=127.0.0.1`로 빌드합니다. 운영 빌드와 demo 로그인 계정은 서로 공유되지 않습니다.
 
-## Codex cloud
-
-각 작업은 이미 격리된 환경입니다. 기존 체크아웃을 사용하고 사용자가 요청하지 않으면 Git worktree를 만들지 않습니다.
+다른 Emulator를 종료한 상태에서:
 
 ```bash
-bash scripts/setup-cloud.sh
-source scripts/cloud-env.sh
-npm run emulators
-# 별도 셸에서 source scripts/cloud-env.sh 후 npm run seed
+npm test                      # Auth/Firestore Emulator: 가입·저장·재로그인·보안 규칙
+npm run test:android-spark     # 실제 Kotlin SparkRepository를 같은 Emulator에 연결
 ```
 
-설치 스크립트는 `/workspace/toolchains`에 검증된 도구를 설치합니다. 시스템 CA와 프록시를 사용하며 TLS·체크섬 검증을 끄지 않습니다. Firebase Emulator 최초 다운로드에는 `storage.googleapis.com` 접근이 필요합니다. Android Emulator/실기기 실행과 실제 Firebase 배포는 별도 단계입니다.
+Emulator 환경은 Blaze 계정이나 실제 프로젝트 배포가 필요하지 않습니다. 테스트는 demo 프로젝트만 사용합니다. `functions/`의 이전 서버 및 자동 알림 코드와 Android 사진/알림 UI는 주석으로 보존했으며 현재 배포 설정에서 제외했습니다. `firebase.blaze.disabled.json`은 이전 설정의 참고용 복사본이며 현재 명령에 사용하지 않습니다.
 
-### Firebase 연결 수정 (2026-10-21)
+## 이전 실행 화면
 
-일반 빌드는 실제 Firebase를 사용합니다. 제공된 `choaezip` 프로젝트의 설정 파일을 로컬 `app/google-services.json`에 적용했습니다. 설정 파일은 Git에 포함하지 않으므로 다른 환경에서 빌드할 때도 같은 위치에 넣어야 합니다. 로컬 Emulator는 `-PuseEmulators=true`를 명시한 경우에만 사용합니다.
-
-Google 버튼은 Credential Manager의 Google 로그인 요청으로 계정을 선택하고 ID 토큰을 Firebase Auth로 전달합니다. 콘솔에서 Google 및 이메일/비밀번호 공급자를 활성화하고, 설치할 APK의 SHA 인증서를 등록해야 합니다. 클라이언트 설정 파일만으로 공급자 활성화나 Functions 배포 여부는 확인할 수 없습니다. 계정 생성 후 프로필 저장이 실패하면 계정을 다시 생성하지 않고 가입 완료 화면에서 재시도합니다.
-
-이 클라우드 환경의 debug APK 인증서 SHA-1:
-`A4:48:75:6F:DC:7E:4D:C3:76:47:C9:F2:05:83:02:30:76:F8:EE:E2`
-
-SHA-256:
-`86:58:08:ED:53:8D:EC:33:13:95:26:FB:A9:E2:AE:EE:82:21:95:4A:3E:D4:AA:7E:C6:41:35:C7:B7:45:7A:F0`
-
-로컬 Android Studio나 출시 키로 빌드하면 인증서가 달라집니다. 해당 환경에서 `./gradlew signingReport`로 확인하여 추가 등록하세요.
-
-### Firebase 콘솔에서 FCM 테스트
-
-1. 실제 Firebase 설정으로 빌드한 앱을 Google Play 서비스가 있는 기기에서 실행합니다.
-2. **마이 → 알림 수신 확인 → 알림 권한 설정**에서 알림을 허용합니다.
-3. **기기 토큰 가져오기 → 기기 토큰 복사**를 누릅니다. 로그인 전에도 사용할 수 있습니다. 토큰은 이 앱 설치를 식별하므로 공개 게시하지 마세요. 재설치/토큰 갱신 후에는 다시 복사합니다.
-4. Firebase 콘솔의 `choaezip` 프로젝트 → Messaging → 알림 메시지 작성에서 제목과 본문을 입력하고 **테스트 메시지 전송**에 복사한 FCM 토큰을 넣습니다.
-5. 앱을 보고 있을 때와 홈 버튼으로 앱을 백그라운드로 보낸 상태에서 각각 확인합니다. 알림을 누르면 앱을 엽니다. 설정에서 강제 종료했다면 앱을 다시 실행한 뒤 전송합니다.
-
-콘솔 notification 메시지는 전경에서 앱이 표시하고, 백그라운드에서는 FCM SDK가 표시합니다. 기본 채널은 `공지와 테스트 알림`입니다. 기기 알림 권한/채널을 꺼두면 표시되지 않습니다. 기존의 계정별 data 메시지는 수신 계정·만료·콘텐츠 접근 검증을 유지합니다. 콘솔 테스트 메시지는 앱 내부 알림함에 저장되지 않습니다. 이 테스트에는 Cloud Functions 배포가 필요하지 않습니다.
-
-### 라운지 데이터 저장 위치와 보관
-
-라운지 저장 버튼은 Firebase Auth로 로그인한 계정으로 서울 리전의 callable `api` (`action=savePost`)를 호출합니다. 서버가 실제 **Cloud Firestore 기본 데이터베이스 → `posts/{글 ID}`**에 제목, 본문, 작성자 UID(`ownerId`), 아티스트, 분류, 생성/수정 시각을 저장합니다. 댓글은 `posts/{글 ID}/comments/{댓글 ID}`, 좋아요는 `posts/{글 ID}/likes/{사용자 UID}`입니다. 사진 파일은 Cloud Storage의 `uploads/{사용자 UID}/{파일 ID}`에 저장되고 글의 `media` 필드에 경로를 보관합니다.
-
-글은 서버 저장 성공 후에만 저장 완료로 표시됩니다. 로그아웃·앱 종료·재실행 후에도 유지되며 일반 게시글에 기간 만료 자동 삭제를 적용하지 않습니다. 사용자가 글을 삭제하거나 탈퇴한 경우, 운영자가 조치한 경우에는 삭제/숨김될 수 있습니다. 저장 요청 ID를 이용하여 동일 요청을 재시도해도 글이 중복 생성되지 않도록 합니다.
-
-실제 저장은 `choaezip` 프로젝트에 Functions, Firestore 규칙 및 인덱스, Storage 규칙이 배포되어 있어야 합니다. 설정 JSON만 넣어서는 서버가 배포되지 않습니다. 프로젝트 소유자가 인증한 터미널에서 다음을 실행하세요.
-
-```bash
-npx firebase deploy --project choaezip --only firestore,storage,functions
-```
-
-Firestore 직접 쓰기 허용 규칙으로 변경할 필요는 없습니다. 서버 검증을 거쳐 저장합니다. Firebase 콘솔의 Firestore `posts` 컬렉션에서 작성 결과를 확인할 수 있습니다.
-
-### 로그인/가입이 진행되지 않을 때
-
-회원가입은 닉네임 2~20자, 이메일 형식, 비밀번호 8~64자, 비밀번호 확인 일치, 필수 동의가 필요합니다. 실패한 항목은 해당 입력란과 가입 버튼 아래에 표시합니다. 동의 문구 전체를 눌러 체크할 수 있습니다.
-
-Google 계정 선택 중에는 앱의 처리 중 Dialog를 띄우지 않습니다. 계정 선택을 마친 뒤 Firebase Auth 인증과 앱 서버의 프로필 조회를 진행합니다. Google 인증이 완료되고 프로필 조회가 실패하면 두 단계를 구분한 안내를 표시합니다. 이 경우 Google 로그인 버튼을 반복해서 누르기 전에 표시된 오류를 확인하세요. Firebase Auth에 계정이 있어도 앱의 `users/{UID}` 프로필과 서울 리전 callable `api`가 준비되어 있어야 앱 로그인이 완료됩니다. 신규 계정은 프로필이 없으면 닉네임/동의 입력 화면으로 이동합니다.
-
-Google 계정 선택 후 Firebase 인증 단계에서 실패하면 설치한 APK의 실제 SHA 인증서를 확인하세요. Android Studio에서 직접 빌드한 앱은 이 클라우드 APK와 서명 지문이 다를 수 있습니다. `./gradlew signingReport` 결과를 Firebase Android 앱에 등록하고 Google 공급자를 활성화한 후 최신 설정 JSON을 적용해야 합니다.
-
-### 로그인·FCM 단계별 Logcat 확인 (debug 빌드)
-
-Android Studio Logcat에서 앱을 선택한 뒤 검색창에 `tag:ChoaezipFirebase`를 입력합니다. 앱을 다시 실행하고 Google 로그인 → 이메일 가입 → FCM 테스트를 각각 시도합니다. `status=START` 이후 같은 request 번호의 `OK`/`FAIL`과 `codes`, `types`를 확인하세요. START만 계속 남아 있으면 해당 단계에서 응답을 기다리고 있는 상태입니다.
-
-| stage | 확인하는 단계 |
-| --- | --- |
-| `firebase.init`, `firebase.config` | 로컬 Firebase 초기화, 프로젝트/패키지/Emulator 모드, OAuth·sender ID 설정 존재 여부, Google Play 서비스 버전 |
-| `auth.google.credential` | Google 계정 선택 및 ID 토큰 반환 |
-| `auth.google.firebase` | Google ID 토큰으로 Firebase Auth 인증 |
-| `auth.email.create`, `auth.email.login` | 이메일 계정 생성/로그인 |
-| `auth.signup.validation`, `auth.profile.validation` | 서버 호출 전 거절된 입력 항목 이름(값 제외) |
-| `auth.profile.load`, `functions.me`, `functions.completeSignup` | 앱 서버 프로필 조회/가입 완료 저장 |
-| `functions.savePost`, `storage.upload` | 라운지 서버 저장/사진 업로드 |
-| `fcm.token`, `fcm.token.refresh` | FCM 토큰 발급/갱신. debug 앱 시작 시 로그인과 별개로 발급 확인 |
-| `functions.device`, `fcm.device.register` | 로그인한 기기의 서버 등록. 콘솔 직접 테스트에는 불필요 |
-| `fcm.permission`, `fcm.receive`, `fcm.notification.settings`, `fcm.display` | 권한, 전경 메시지 수신, 기기/채널 설정, 알림 표시 요청 |
-
-`firebase.init OK`는 로컬 설정을 읽었다는 뜻이며 실제 서버 통신 성공을 의미하지 않습니다. `auth.google.firebase OK`/`auth.email.create OK`는 Auth 요청 성공, `fcm.token OK`는 토큰 발급 요청 성공입니다. FCM 토큰 발급은 Auth/Functions와 독립적으로 확인합니다. 콘솔 테스트는 먼저 앱이 열린 상태에서 보내 `fcm.receive`를 확인하세요. 백그라운드 notification 메시지는 SDK가 표시하여 이 서비스의 수신 로그가 나오지 않을 수 있습니다. `fcm.display SUBMITTED`는 Android에 표시를 요청했다는 뜻이며 화면 표시/전달 성공 보장이 아닙니다.
-
-공유할 로그는 위 태그의 초기화부터 실패까지입니다. 로그에는 비밀번호, 이메일, 사용자 UID, Google/Firebase ID 토큰, FCM 토큰 원문, 게시글 본문, SDK 예외 메시지를 출력하지 않습니다. 예외 종류와 SDK 오류 코드 및 스택 위치만 남깁니다. 실제 테스트에 필요한 FCM 토큰은 앱 화면의 복사 버튼을 사용하세요. 릴리스 빌드에서는 이 진단 로그를 출력하지 않습니다.
+`docs/screenshots/`의 PNG는 Spark 전환 이전 Android 10 Emulator 실행 캡처이며 가상 아티스트 LUMI 데이터가 포함됩니다. 현재 사진/자동 알림 UI와 저장 구조를 나타내는 최신 화면은 아닙니다. 검증 기록은 [docs/VALIDATION.md](docs/VALIDATION.md)를 참고하세요.

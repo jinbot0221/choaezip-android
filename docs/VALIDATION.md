@@ -62,3 +62,15 @@ Firebase 서비스 계정 키·릴리스 서명 키·실제 `google-services.jso
 - debug 실프로젝트 앱 시작 시 Auth/Functions와 독립적으로 FCM 토큰 요청. 오류를 숨기던 기기 등록 실패도 로그 제공.
 - 로그에 실제 토큰/이메일/비밀번호/SDK 예외 메시지와 반환 데이터를 기록하지 않는 회귀 테스트 통과. 릴리스 로그 비활성화.
 - 이 작업은 원인 수집을 위한 계측이며 실제 사용자 기기의 Google 로그인/FCM 실패 원인이 해결되었다고 단정하지 않음. 실기기 재현 로그가 필요함. 백그라운드 콘솔 알림은 SDK 처리이므로 서비스 수신 로그가 없을 수 있음.
+
+## 2026-10-21 Firebase Spark 전환
+
+- 활성 `firebase.json`을 Firestore만 배포하도록 변경. Android APK의 Functions/Storage 의존성 제거. 기존 서버/스케줄러·사진 업로드·사진 선택 UI·자동 알림 UI와 기기 등록 코드는 주석 보존. 이전 배포 설정은 `firebase.blaze.disabled.json`으로 분리.
+- `SparkRepository`가 실제 Auth 세션으로 Firestore에 가입 프로필, 공개 프로필, 글/댓글/좋아요, 비공개 기록, 선호 아티스트, 차단/신고를 직접 저장/조회. 저장 성공은 서버 확인 후 표시. 서버 시각, 소유자, 허용 필드, 길이, 버전, 빈 media를 규칙에서 검증. 공개 프로필에는 닉네임/소개만 허용.
+- 빈 데이터베이스의 텍스트 작성용 `general`(아티스트 미지정) 지원. 댓글/좋아요 자동 알림·사진/Storage는 사용하지 않음. 콘솔 notification FCM 전경/백그라운드 수신 구조 유지.
+- 실제 프로젝트 JSON을 사용하는 `assembleDebug testDebugUnitTest lintDebug` 성공. Android 일반 테스트 14개 통과; Emulator가 필요한 통합 테스트 1개는 일반 실행에서 의도적으로 skip.
+- `npm run test:android-spark` 별도 실행 성공: 실제 Kotlin 저장 코드를 Auth/Firestore Emulator에 연결하여 이메일 생성, 미완료 프로필 판정, 원자적 가입, 저장 재시도 중복 방지, 재로그인 후 영구 글 조회, 목록, 좋아요 집계, 댓글, 비공개 기록, 프로필 변경, 최애 저장, 탈퇴 정리를 검증. Functions/Storage Emulator 없이 통과.
+- `npm test` 성공: 보안·Auth/Firestore 통합 및 정책 테스트 전체 15개 통과. 공개 조회, 권한 상승/타인 접근 거부, 사진 차단, 서버 시각/버전, 날짜 유효성, 페이지 조회, 차단 관계, 신고 처리 상태 조작 차단, 제한 계정, 자동 알림 큐 차단, 숨김 게시글의 댓글 비공개, 본인 반응 정리 쿼리 포함.
+- 최종 APK DEX에서 FirebaseFunctions 및 FirebaseStorage SDK 클래스가 없는 것 확인. 기본 BuildConfig USE_EMULATORS=false.
+- 실제 사용자 프로젝트의 Firestore 규칙·인덱스는 이 환경에서 배포하지 않음. 사용자는 최신 코드로 `npx firebase deploy --project choaezip --only firestore` 실행 필요. 실제 Google 계정/실기기 FCM 발송은 여전히 미검증.
+- Spark 탈퇴는 앱에서 재시도 가능한 단계별 정리 후 Auth 계정 삭제. 게시글은 본문 삭제와 비공개 tombstone 방식이며 서버 백그라운드 재시도·Storage 파일 정리는 제공하지 않음. 기존 스크린샷/위의 Functions 버전 검증 내용은 이전 구현의 기록.

@@ -1,3 +1,6 @@
+// Spark build: legacy callable backend, Storage and automatic notification worker disabled.
+// Do not deploy this file; the active app uses SparkRepository and firestore.rules.
+/*
 'use strict';
 const {onCall, HttpsError} = require('firebase-functions/v2/https');
 const {onSchedule} = require('firebase-functions/v2/scheduler');
@@ -433,3 +436,5 @@ exports.dispatch = onSchedule({schedule:'every 1 minutes',region:'asia-northeast
     if(!used) await f.delete({ignoreNotFound:true});
   }
 });
+
+*/

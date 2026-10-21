@@ -48,8 +48,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-functions")
-    implementation("com.google.firebase:firebase-storage")
+    // Spark: implementation("com.google.firebase:firebase-functions")
+    // Spark: implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("androidx.credentials:credentials:1.5.0")
@@ -64,6 +64,7 @@ dependencies {
 
 // Forward only transport/trust properties needed by Robolectric's verified SDK download.
 tasks.withType<Test>().configureEach {
+    systemProperty("sparkIntegration", providers.gradleProperty("sparkIntegration").orElse("false").get())
     val testHome = layout.buildDirectory.dir("test-home").get().asFile
     systemProperty("user.home", testHome.absolutePath)
     doFirst { testHome.mkdirs() }

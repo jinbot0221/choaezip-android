@@ -1,1 +1,16 @@
-{"name":"choaezip-development","private":true,"scripts":{"emulators":"firebase emulators:start --project demo-choaezip","test":"firebase emulators:exec --project demo-choaezip --only auth,firestore,functions,storage 'node --test functions/test/*.test.js'","seed":"node scripts/seed.cjs"},"devDependencies":{"firebase-tools":"14.7.0","@firebase/rules-unit-testing":"4.0.1","firebase":"11.9.1"}}
+{
+  "name": "choaezip-development",
+  "private": true,
+  "scripts": {
+    "emulators": "firebase emulators:start --project demo-choaezip",
+    "test": "firebase emulators:exec --project demo-choaezip --only auth,firestore 'node --test tests/spark.test.cjs functions/test/policy.test.js'",
+    "seed": "node scripts/seed.cjs",
+    "deploy:spark": "firebase deploy --only firestore --project choaezip",
+    "test:android-spark": "firebase emulators:exec --project demo-choaezip --only auth,firestore './gradlew --no-daemon -PuseEmulators=true -PemulatorHost=127.0.0.1 -PsparkIntegration=true testDebugUnitTest --tests \"*SparkRepositoryIntegrationTest\"'"
+  },
+  "devDependencies": {
+    "firebase-tools": "14.7.0",
+    "@firebase/rules-unit-testing": "4.0.1",
+    "firebase": "11.9.1"
+  }
+}

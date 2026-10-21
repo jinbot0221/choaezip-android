@@ -2,8 +2,6 @@ package com.portfolio.choaezip
 
 import android.util.Log
 import com.google.firebase.auth.FirebaseAuthException
-import com.google.firebase.functions.FirebaseFunctionsException
-import com.google.firebase.storage.StorageException
 import kotlinx.coroutines.CancellationException
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -20,8 +18,8 @@ internal object FirebaseTrace {
         val codes = causes.mapNotNull {
             when (it) {
                 is FirebaseAuthException -> it.errorCode
-                is FirebaseFunctionsException -> it.code.name
-                is StorageException -> it.errorCode.toString()
+                is com.google.firebase.firestore.FirebaseFirestoreException -> it.code.name
+
                 // FCM exposes these fixed error strings through IOException, not a typed code.
                 else -> it.message?.takeIf { value -> value in setOf("SERVICE_NOT_AVAILABLE", "AUTHENTICATION_FAILED", "INSTANCE_ID_RESET", "MISSING_INSTANCEID_SERVICE", "TOO_MANY_REGISTRATIONS", "INVALID_SENDER") }
             }

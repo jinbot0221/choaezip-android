@@ -27,12 +27,15 @@ object PushChannels {
 class PushService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         FirebaseTrace.event("fcm.token.refresh", "OK", "backendConfigured=${Backend.configured}")
+        // Spark: server device registration disabled; console FCM still supported.
+/*
         if (!Backend.configured || Backend.auth.currentUser == null) return
         val prefs = getSharedPreferences("choaezip", Context.MODE_PRIVATE)
         val installation = prefs.getString("installation", null) ?: return
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { Backend.call("device", "installationId" to installation, "token" to token, "permission" to (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) }.onFailure { if(it is Exception) FirebaseTrace.failure("fcm.device.register", it) }
         }
+*/
     }
     override fun onMessageReceived(message: RemoteMessage) {
         FirebaseTrace.event("fcm.receive", "OK", "notificationPayload=${message.notification != null} dataPayload=${message.data.isNotEmpty()}")
@@ -55,6 +58,8 @@ class PushService : FirebaseMessagingService() {
             FirebaseTrace.event("fcm.display", "SUBMITTED", "channel=announcements")
             return
         }
+        // Spark: automatic private data-message dispatch disabled.
+/*
         if(!Backend.configured) { FirebaseTrace.event("fcm.data", "SKIPPED", "reason=backend_not_configured"); return }
         val d=message.data
         val uid=Backend.auth.currentUser?.uid ?: run { FirebaseTrace.event("fcm.data", "SKIPPED", "reason=signed_out"); return }
@@ -77,5 +82,7 @@ class PushService : FirebaseMessagingService() {
                 FirebaseTrace.event("fcm.display", "SUBMITTED", "channel=$group")
             }.onFailure { if(it is Exception) FirebaseTrace.failure("fcm.data.validate", it) }
         }
+*/
+        FirebaseTrace.event("fcm.data", "SKIPPED", "reason=server_notifications_disabled")
     }
 }
